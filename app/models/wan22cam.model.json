@@ -1,0 +1,19 @@
+{
+  "id": "wan22cam",
+  "name": "Wan 2.2 Fun Camera 14B",
+  "short": "Wan Kamera",
+  "vendor": "Alibaba / VideoX-Fun",
+  "order": 7,
+  "modes": {
+    "i2v": "wan22cam-i2v"
+  },
+  "license": {
+    "name": "Apache License 2.0",
+    "url": "https://huggingface.co/alibaba-pai/Wan2.2-Fun-A14B-Control-Camera",
+    "commercial": "yes",
+    "summary": {
+      "de": "Frei nutzbar, auch kommerziell. Lizenztext und Hinweise beim Weitergeben beilegen.",
+      "en": "Free to use, including commercially. Include the licence text and notices when redistributing."
+    }
+  }
+}

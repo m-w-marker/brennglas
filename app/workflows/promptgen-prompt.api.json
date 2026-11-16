@@ -1,0 +1,128 @@
+{
+ "1": {
+  "inputs": {
+   "value": "a red chair"
+  },
+  "class_type": "PrimitiveStringMultiline",
+  "_meta": {
+   "title": "IN_PROMPT"
+  }
+ },
+ "2": {
+  "inputs": {
+   "value": "You write prompts for a text-to-image model. Turn the user's idea into one rich, natural-language description of a single still image: the subject and what it looks like, the setting, composition and camera viewpoint, lighting, colour palette, material and texture details, and the style or medium. 60 to 150 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists."
+  },
+  "class_type": "PrimitiveStringMultiline",
+  "_meta": {
+   "title": "IN_TARGET"
+  }
+ },
+ "3": {
+  "inputs": {
+   "value": false
+  },
+  "class_type": "PrimitiveBoolean",
+  "_meta": {
+   "title": "IN_LARGE"
+  }
+ },
+ "4": {
+  "inputs": {
+   "clip_name": "gemma4_e2b_it_int8_convrot.safetensors",
+   "type": "ltxv",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Klein: Gemma 4 E2B"
+  }
+ },
+ "5": {
+  "inputs": {
+   "clip_name": "qwen3.5_9b_w4a8_gptq.safetensors",
+   "type": "minimax",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Groß: Qwen 3.5 9B"
+  }
+ },
+ "6": {
+  "inputs": {
+   "switch": [
+    "3",
+    0
+   ],
+   "on_false": [
+    "4",
+    0
+   ],
+   "on_true": [
+    "5",
+    0
+   ]
+  },
+  "class_type": "ComfySwitchNode",
+  "_meta": {
+   "title": "Sprachmodell"
+  }
+ },
+ "7": {
+  "inputs": {
+   "image": "beispiel.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "IN_IMAGE"
+  }
+ },
+ "8": {
+  "inputs": {
+   "clip": [
+    "6",
+    0
+   ],
+   "prompt": [
+    "1",
+    0
+   ],
+   "image": [
+    "7",
+    0
+   ],
+   "system_prompt": [
+    "2",
+    0
+   ],
+   "max_length": 1536,
+   "sampling_mode": "on",
+   "sampling_mode.temperature": 0.8,
+   "sampling_mode.top_k": 20,
+   "sampling_mode.top_p": 0.95,
+   "sampling_mode.min_p": 0,
+   "sampling_mode.repetition_penalty": 1.05,
+   "sampling_mode.seed": 0,
+   "sampling_mode.presence_penalty": 0,
+   "thinking": false,
+   "use_default_template": true,
+   "mtp": "auto"
+  },
+  "class_type": "TextGenerate",
+  "_meta": {
+   "title": "IN_SEED"
+  }
+ },
+ "9": {
+  "inputs": {
+   "source": [
+    "8",
+    0
+   ]
+  },
+  "class_type": "PreviewAny",
+  "_meta": {
+   "title": "OUT_TEXT"
+  }
+ }
+}

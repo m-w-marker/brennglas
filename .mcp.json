@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "brennglas": {
+      "command": "node",
+      "args": ["app/mcp/src/index.ts"]
+    }
+  }
+}

@@ -1,0 +1,243 @@
+{
+  "name": "wan22cam-i2v",
+  "label": {
+    "de": "Kamerafahrt",
+    "en": "Camera move"
+  },
+  "submit": {
+    "de": "Video erzeugen",
+    "en": "Generate video"
+  },
+  "inputs": {
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "label": {
+        "de": "Startbild",
+        "en": "First frame"
+      }
+    },
+    "camera": {
+      "node": "IN_CAMERA",
+      "field": "camera_pose",
+      "type": "enum",
+      "default": "Zoom In",
+      "options": [
+        "Static",
+        "Zoom In",
+        "Zoom Out",
+        "Pan Left",
+        "Pan Right",
+        "Pan Up",
+        "Pan Down",
+        "Anti Clockwise (ACW)",
+        "ClockWise (CW)"
+      ],
+      "optionLabels": {
+        "Static": {
+          "de": "Stativ (keine Bewegung)",
+          "en": "Static"
+        },
+        "Zoom In": {
+          "de": "Heranfahren",
+          "en": "Push in"
+        },
+        "Zoom Out": {
+          "de": "Zurückfahren",
+          "en": "Pull out"
+        },
+        "Pan Left": {
+          "de": "Schwenk links",
+          "en": "Pan left"
+        },
+        "Pan Right": {
+          "de": "Schwenk rechts",
+          "en": "Pan right"
+        },
+        "Pan Up": {
+          "de": "Schwenk hoch",
+          "en": "Tilt up"
+        },
+        "Pan Down": {
+          "de": "Schwenk runter",
+          "en": "Tilt down"
+        },
+        "Anti Clockwise (ACW)": {
+          "de": "Rollen gegen den Uhrzeigersinn",
+          "en": "Roll anticlockwise"
+        },
+        "ClockWise (CW)": {
+          "de": "Rollen im Uhrzeigersinn",
+          "en": "Roll clockwise"
+        }
+      },
+      "label": {
+        "de": "Kamera",
+        "en": "Camera"
+      }
+    },
+    "prompt": {
+      "node": "IN_PROMPT",
+      "field": "value",
+      "type": "string",
+      "label": {
+        "de": "Prompt",
+        "en": "Prompt"
+      },
+      "placeholder": {
+        "de": "Was in der Szene passiert – die Kamera kommt aus der Auswahl oben; englisch wirkt am besten",
+        "en": "What happens in the scene – the camera comes from the choice above"
+      }
+    },
+    "speed": {
+      "node": "IN_SPEED",
+      "field": "value",
+      "type": "float",
+      "default": 1,
+      "min": 0.1,
+      "max": 3,
+      "label": {
+        "de": "Tempo der Kamera",
+        "en": "Camera speed"
+      },
+      "presets": [
+        {
+          "label": {
+            "de": "langsam",
+            "en": "slow"
+          },
+          "value": 0.5
+        },
+        {
+          "label": {
+            "de": "normal",
+            "en": "normal"
+          },
+          "value": 1
+        },
+        {
+          "label": {
+            "de": "schnell",
+            "en": "fast"
+          },
+          "value": 2
+        }
+      ]
+    },
+    "aspect": {
+      "node": "IN_ASPECT",
+      "field": "value",
+      "type": "float",
+      "default": 0,
+      "min": 0,
+      "max": 4,
+      "label": {
+        "de": "Seitenverhältnis (fest = Startbild wird mittig beschnitten)",
+        "en": "Aspect ratio (fixed = first frame is centre-cropped)"
+      },
+      "presets": [
+        {
+          "label": {
+            "de": "Original",
+            "en": "Original"
+          },
+          "value": 0
+        },
+        {
+          "label": "16:9",
+          "value": 1.7778
+        },
+        {
+          "label": "9:16",
+          "value": 0.5625
+        },
+        {
+          "label": "1:1",
+          "value": 1
+        },
+        {
+          "label": "4:3",
+          "value": 1.3333
+        }
+      ]
+    },
+    "size": {
+      "node": "IN_SIZE",
+      "field": "value",
+      "type": "int",
+      "default": 480,
+      "min": 256,
+      "max": 720,
+      "unit": "px",
+      "label": {
+        "de": "Auflösung (kurze Kante)",
+        "en": "Resolution (short edge)"
+      },
+      "presets": [
+        {
+          "label": "480p",
+          "value": 480
+        },
+        {
+          "label": "720p",
+          "value": 720
+        }
+      ]
+    },
+    "duration": {
+      "node": "IN_DURATION",
+      "field": "value",
+      "type": "int",
+      "default": 5,
+      "min": 1,
+      "max": 6,
+      "label": {
+        "de": "Länge",
+        "en": "Length"
+      },
+      "presets": [
+        {
+          "label": "3 s",
+          "value": 3
+        },
+        {
+          "label": "5 s",
+          "value": 5
+        }
+      ]
+    },
+    "pe": {
+      "node": "IN_PE",
+      "field": "value",
+      "type": "bool",
+      "default": false,
+      "label": {
+        "de": "Prompt-Erweiterung (Qwen 3.5 9B, sieht das Startbild)",
+        "en": "Prompt enhancer (Qwen 3.5 9B, sees the first frame)"
+      }
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "noise_seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 4294967295,
+      "label": "Seed",
+      "advanced": true
+    }
+  },
+  "outputs": {
+    "image": {
+      "node": "OUT_IMAGE"
+    },
+    "video": {
+      "node": "OUT_VIDEO"
+    },
+    "expandedPrompt": {
+      "node": "OUT_PROMPT",
+      "optional": true
+    }
+  }
+}

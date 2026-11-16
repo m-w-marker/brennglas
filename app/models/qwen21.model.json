@@ -1,0 +1,20 @@
+{
+  "id": "qwen21",
+  "name": "Qwen-Image-2.1 Turbo",
+  "short": "Qwen 2.1",
+  "vendor": "Alibaba Qwen",
+  "order": 3,
+  "modes": {
+    "t2i": "qwen21-t2i",
+    "edit": "qwen21-edit"
+  },
+  "license": {
+    "name": "Qwen Research License",
+    "url": "https://huggingface.co/Qwen/Qwen-Image-2.1-Turbo",
+    "commercial": "no",
+    "summary": {
+      "de": "Modell nur für Forschung und Erprobung, nicht kommerziell; kommerziell nur mit eigener Lizenz von Alibaba. Zu den erzeugten Bildern äußert sich der Text nicht ausdrücklich.",
+      "en": "The model is for research and evaluation only, not commercial; commercial use needs a separate license from Alibaba. The text says nothing explicit about generated images."
+    }
+  }
+}

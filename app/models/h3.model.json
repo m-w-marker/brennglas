@@ -1,0 +1,20 @@
+{
+  "id": "h3",
+  "name": "MiniMax H3 Image",
+  "short": "H3",
+  "vendor": "MiniMax",
+  "order": 1,
+  "modes": {
+    "t2i": "h3-t2i",
+    "edit": "h3-edit"
+  },
+  "license": {
+    "name": "MiniMax-H3-Image Community License",
+    "url": "https://huggingface.co/MiniMaxAI/MiniMax-H3-Image/blob/main/LICENSE",
+    "commercial": "limited",
+    "summary": {
+      "de": "Nicht lizenziert für die EU, Großbritannien, Südkorea und die USA. Ab 1 Mio. USD Jahresumsatz oder als Online-Dienst für Dritte nur mit schriftlicher Erlaubnis von MiniMax. Es gilt die Nutzungsrichtlinie (Anhang A).",
+      "en": "Not licensed for the EU, the United Kingdom, South Korea and the USA. Above USD 1M annual revenue, or as an online service for third parties, only with written permission from MiniMax. The Acceptable Use Policy (Exhibit A) applies."
+    }
+  }
+}

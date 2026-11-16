@@ -1,0 +1,579 @@
+{
+ "10": {
+  "inputs": {
+   "image": "beispiel.png"
+  },
+  "class_type": "LoadImage",
+  "_meta": {
+   "title": "IN_IMAGE"
+  }
+ },
+ "11": {
+  "inputs": {
+   "value": "The camera moves slowly through the scene."
+  },
+  "class_type": "PrimitiveStringMultiline",
+  "_meta": {
+   "title": "IN_PROMPT"
+  }
+ },
+ "12": {
+  "inputs": {
+   "value": 480
+  },
+  "class_type": "PrimitiveInt",
+  "_meta": {
+   "title": "IN_SIZE"
+  }
+ },
+ "13": {
+  "inputs": {
+   "value": 0
+  },
+  "class_type": "PrimitiveFloat",
+  "_meta": {
+   "title": "IN_ASPECT"
+  }
+ },
+ "14": {
+  "inputs": {
+   "value": 5
+  },
+  "class_type": "PrimitiveInt",
+  "_meta": {
+   "title": "IN_DURATION"
+  }
+ },
+ "15": {
+  "inputs": {
+   "value": 1
+  },
+  "class_type": "PrimitiveFloat",
+  "_meta": {
+   "title": "IN_SPEED"
+  }
+ },
+ "16": {
+  "inputs": {
+   "value": false
+  },
+  "class_type": "PrimitiveBoolean",
+  "_meta": {
+   "title": "IN_PE"
+  }
+ },
+ "17": {
+  "inputs": {
+   "clip_name": "qwen3.5_9b_w4a8_gptq.safetensors",
+   "type": "minimax",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "Load CLIP (Prompt-Erweiterung)"
+  }
+ },
+ "18": {
+  "inputs": {
+   "value": "You are an expert in writing prompts for an image-to-video model. The user gives you a start image and a short idea. Rewrite the idea into one video prompt that brings the image to life.\n- Describe only the motion of subjects and the environment (people, animals, objects, light, weather, particles), in the order it happens.\n- Never describe camera movement, zoom, framing or shot type: the camera is controlled separately.\n- Do not re-describe static details that are already visible in the image, only what changes.\n- If the idea is empty or very short, invent plausible, natural motion that fits the image.\n- English only, at most 80 words, output only the prompt."
+  },
+  "class_type": "PrimitiveStringMultiline",
+  "_meta": {
+   "title": "Text (system_prompt)"
+  }
+ },
+ "19": {
+  "inputs": {
+   "clip": [
+    "17",
+    0
+   ],
+   "prompt": [
+    "11",
+    0
+   ],
+   "image": [
+    "10",
+    0
+   ],
+   "system_prompt": [
+    "18",
+    0
+   ],
+   "max_length": 1024,
+   "sampling_mode": "on",
+   "sampling_mode.temperature": 0.7,
+   "sampling_mode.top_k": 20,
+   "sampling_mode.top_p": 0.95,
+   "sampling_mode.min_p": 0,
+   "sampling_mode.repetition_penalty": 1.05,
+   "sampling_mode.seed": 0,
+   "sampling_mode.presence_penalty": 0,
+   "thinking": false,
+   "use_default_template": true,
+   "mtp": "auto"
+  },
+  "class_type": "TextGenerate",
+  "_meta": {
+   "title": "Prompt-Erweiterung"
+  }
+ },
+ "20": {
+  "inputs": {
+   "image": [
+    "10",
+    0
+   ]
+  },
+  "class_type": "GetImageSize",
+  "_meta": {
+   "title": "Bildgröße"
+  }
+ },
+ "21": {
+  "inputs": {
+   "expression": "a / b if c == 0 else c",
+   "values.a": [
+    "20",
+    0
+   ],
+   "values.b": [
+    "20",
+    1
+   ],
+   "values.c": [
+    "13",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Seitenverhältnis"
+  }
+ },
+ "22": {
+  "inputs": {
+   "expression": "round(b * max(a, 1) / 16) * 16",
+   "values.a": [
+    "21",
+    0
+   ],
+   "values.b": [
+    "12",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Breite (Raster)"
+  }
+ },
+ "23": {
+  "inputs": {
+   "expression": "round(b * max(1 / a, 1) / 16) * 16",
+   "values.a": [
+    "21",
+    0
+   ],
+   "values.b": [
+    "12",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Höhe (Raster)"
+  }
+ },
+ "24": {
+  "inputs": {
+   "expression": "a * 16 + 1",
+   "values.a": [
+    "14",
+    0
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Frames (16 fps)"
+  }
+ },
+ "25": {
+  "inputs": {
+   "expression": "round(a / 2)",
+   "values.a": [
+    "24",
+    1
+   ]
+  },
+  "class_type": "ComfyMathExpression",
+  "_meta": {
+   "title": "Mitte"
+  }
+ },
+ "26": {
+  "inputs": {
+   "switch": [
+    "16",
+    0
+   ],
+   "on_false": [
+    "11",
+    0
+   ],
+   "on_true": [
+    "19",
+    0
+   ]
+  },
+  "class_type": "ComfySwitchNode",
+  "_meta": {
+   "title": "Switch"
+  }
+ },
+ "30": {
+  "inputs": {
+   "camera_pose": "Zoom In",
+   "width": [
+    "22",
+    1
+   ],
+   "height": [
+    "23",
+    1
+   ],
+   "length": [
+    "24",
+    1
+   ],
+   "speed": [
+    "15",
+    0
+   ],
+   "fx": 0.5,
+   "fy": 0.5,
+   "cx": 0.5,
+   "cy": 0.5
+  },
+  "class_type": "WanCameraEmbedding",
+  "_meta": {
+   "title": "IN_CAMERA"
+  }
+ },
+ "40": {
+  "inputs": {
+   "unet_name": "wan2.2_fun_camera_high_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "High Noise"
+  }
+ },
+ "41": {
+  "inputs": {
+   "unet_name": "wan2.2_fun_camera_low_noise_14B_fp8_scaled.safetensors",
+   "weight_dtype": "default"
+  },
+  "class_type": "UNETLoader",
+  "_meta": {
+   "title": "Low Noise"
+  }
+ },
+ "42": {
+  "inputs": {
+   "model": [
+    "40",
+    0
+   ],
+   "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors",
+   "strength_model": 1
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "4 Schritte High"
+  }
+ },
+ "43": {
+  "inputs": {
+   "model": [
+    "41",
+    0
+   ],
+   "lora_name": "wan2.2_i2v_lightx2v_4steps_lora_v1_low_noise.safetensors",
+   "strength_model": 1
+  },
+  "class_type": "LoraLoaderModelOnly",
+  "_meta": {
+   "title": "4 Schritte Low"
+  }
+ },
+ "44": {
+  "inputs": {
+   "model": [
+    "42",
+    0
+   ],
+   "shift": 8
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "Shift High"
+  }
+ },
+ "45": {
+  "inputs": {
+   "model": [
+    "43",
+    0
+   ],
+   "shift": 8
+  },
+  "class_type": "ModelSamplingSD3",
+  "_meta": {
+   "title": "Shift Low"
+  }
+ },
+ "46": {
+  "inputs": {
+   "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+   "type": "wan",
+   "device": "default"
+  },
+  "class_type": "CLIPLoader",
+  "_meta": {
+   "title": "umt5"
+  }
+ },
+ "47": {
+  "inputs": {
+   "vae_name": "wan_2.1_vae.safetensors"
+  },
+  "class_type": "VAELoader",
+  "_meta": {
+   "title": "VAE"
+  }
+ },
+ "50": {
+  "inputs": {
+   "text": [
+    "26",
+    0
+   ],
+   "clip": [
+    "46",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "Positiv"
+  }
+ },
+ "51": {
+  "inputs": {
+   "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+   "clip": [
+    "46",
+    0
+   ]
+  },
+  "class_type": "CLIPTextEncode",
+  "_meta": {
+   "title": "Negativ"
+  }
+ },
+ "52": {
+  "inputs": {
+   "positive": [
+    "50",
+    0
+   ],
+   "negative": [
+    "51",
+    0
+   ],
+   "vae": [
+    "47",
+    0
+   ],
+   "width": [
+    "30",
+    1
+   ],
+   "height": [
+    "30",
+    2
+   ],
+   "length": [
+    "30",
+    3
+   ],
+   "batch_size": 1,
+   "start_image": [
+    "10",
+    0
+   ],
+   "camera_conditions": [
+    "30",
+    0
+   ]
+  },
+  "class_type": "WanCameraImageToVideo",
+  "_meta": {
+   "title": "Kamera-Bild-zu-Video"
+  }
+ },
+ "60": {
+  "inputs": {
+   "add_noise": "enable",
+   "noise_seed": 42,
+   "steps": 4,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 0,
+   "end_at_step": 2,
+   "return_with_leftover_noise": "enable",
+   "model": [
+    "44",
+    0
+   ],
+   "positive": [
+    "52",
+    0
+   ],
+   "negative": [
+    "52",
+    1
+   ],
+   "latent_image": [
+    "52",
+    2
+   ]
+  },
+  "class_type": "KSamplerAdvanced",
+  "_meta": {
+   "title": "IN_SEED"
+  }
+ },
+ "61": {
+  "inputs": {
+   "add_noise": "disable",
+   "noise_seed": 0,
+   "steps": 4,
+   "cfg": 1,
+   "sampler_name": "euler",
+   "scheduler": "simple",
+   "start_at_step": 2,
+   "end_at_step": 4,
+   "return_with_leftover_noise": "disable",
+   "model": [
+    "45",
+    0
+   ],
+   "positive": [
+    "52",
+    0
+   ],
+   "negative": [
+    "52",
+    1
+   ],
+   "latent_image": [
+    "60",
+    0
+   ]
+  },
+  "class_type": "KSamplerAdvanced",
+  "_meta": {
+   "title": "KSampler Low"
+  }
+ },
+ "62": {
+  "inputs": {
+   "samples": [
+    "61",
+    0
+   ],
+   "vae": [
+    "47",
+    0
+   ]
+  },
+  "class_type": "VAEDecode",
+  "_meta": {
+   "title": "VAE Decode"
+  }
+ },
+ "63": {
+  "inputs": {
+   "images": [
+    "62",
+    0
+   ],
+   "fps": 16
+  },
+  "class_type": "CreateVideo",
+  "_meta": {
+   "title": "Create Video"
+  }
+ },
+ "70": {
+  "inputs": {
+   "video": [
+    "63",
+    0
+   ],
+   "filename_prefix": "brennglas_wan22cam_i2v",
+   "format": "auto",
+   "codec": "auto"
+  },
+  "class_type": "SaveVideo",
+  "_meta": {
+   "title": "OUT_VIDEO"
+  }
+ },
+ "71": {
+  "inputs": {
+   "image": [
+    "62",
+    0
+   ],
+   "batch_index": [
+    "25",
+    1
+   ],
+   "length": 1
+  },
+  "class_type": "ImageFromBatch",
+  "_meta": {
+   "title": "Vorschau-Frame"
+  }
+ },
+ "72": {
+  "inputs": {
+   "images": [
+    "71",
+    0
+   ],
+   "filename_prefix": "brennglas_wan22cam_i2v"
+  },
+  "class_type": "SaveImage",
+  "_meta": {
+   "title": "OUT_IMAGE"
+  }
+ },
+ "73": {
+  "inputs": {
+   "source": [
+    "26",
+    0
+   ]
+  },
+  "class_type": "PreviewAny",
+  "_meta": {
+   "title": "OUT_PROMPT"
+  }
+ }
+}

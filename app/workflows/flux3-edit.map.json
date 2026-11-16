@@ -1,0 +1,105 @@
+{
+  "name": "flux3-edit",
+  "label": {
+    "de": "Bild bearbeiten",
+    "en": "Image Edit"
+  },
+  "inputs": {
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "label": {
+        "de": "Ausgangsbild",
+        "en": "Source image"
+      }
+    },
+    "prompt": {
+      "node": "IN_PROMPT",
+      "field": "value",
+      "type": "string",
+      "label": {
+        "de": "Anweisung",
+        "en": "Instruction"
+      },
+      "placeholder": {
+        "de": "Beschreibe das fertige Bild samt Änderung",
+        "en": "Describe the finished image including the change"
+      }
+    },
+    "megapixels": {
+      "node": "IN_REFS",
+      "field": "resolution.megapixels",
+      "type": "float",
+      "default": 2,
+      "min": 0.1,
+      "max": 4,
+      "label": {
+        "de": "Größe",
+        "en": "Size"
+      },
+      "unit": "MP",
+      "presets": [
+        {
+          "label": "Fast Draft",
+          "value": 1
+        },
+        {
+          "label": "Balanced",
+          "value": 2
+        },
+        {
+          "label": "High Quality",
+          "value": 4
+        }
+      ]
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 9007199254740991,
+      "label": {
+        "de": "Seed",
+        "en": "Seed"
+      }
+    },
+    "enhance": {
+      "node": "IN_PE",
+      "field": "value",
+      "type": "bool",
+      "default": false,
+      "label": {
+        "de": "Prompt erweitern lassen (lädt ein weiteres Modell)",
+        "en": "Expand prompt (loads another model)"
+      }
+    }
+  },
+  "refs": {
+    "max": 9,
+    "token": "<ref_image_{i}>",
+    "targets": [
+      {
+        "node": "IN_REFS",
+        "prefix": "images.image",
+        "start": 1
+      },
+      {
+        "node": "IN_PE_REFS",
+        "prefix": "images.image",
+        "start": 1
+      }
+    ]
+  },
+  "outputs": {
+    "image": {
+      "node": "OUT_IMAGE"
+    },
+    "expandedPrompt": {
+      "node": "OUT_CAPTION",
+      "optional": true
+    }
+  }
+}

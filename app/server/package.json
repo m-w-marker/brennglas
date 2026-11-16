@@ -1,0 +1,23 @@
+{
+  "name": "@brennglas/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --include \"../workflows/*.json\" --include \"../models/*.json\" src/index.ts",
+    "build": "tsc -p .",
+    "typecheck": "tsc --noEmit -p .",
+    "comfy:test": "tsx src/comfy/test.ts"
+  },
+  "dependencies": {
+    "@brennglas/shared": "workspace:*",
+    "fastify": "^5.12.8",
+    "ws": "^8.23.0",
+    "better-sqlite3": "^13.2.0",
+    "sharp": "^0.35.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "@types/ws": "^8.18.2",
+    "@types/better-sqlite3": "^9.6.0"
+  }
+}

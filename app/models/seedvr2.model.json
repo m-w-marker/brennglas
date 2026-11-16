@@ -1,0 +1,20 @@
+{
+  "id": "seedvr2",
+  "name": "SeedVR2 7B",
+  "short": "SeedVR2",
+  "vendor": "ByteDance Seed",
+  "order": 9,
+  "modes": {
+    "upscale": "seedvr2-upscale",
+    "video": "seedvr2-video"
+  },
+  "license": {
+    "name": "Apache License 2.0",
+    "url": "https://huggingface.co/ByteDance-Seed/SeedVR2-7B",
+    "commercial": "yes",
+    "summary": {
+      "de": "Freie Nutzung, auch kommerziell. Lizenz- und Copyright-Hinweis beim Weitergeben beilegen.",
+      "en": "Free to use, including commercially. Include the license and copyright notice when redistributing."
+    }
+  }
+}

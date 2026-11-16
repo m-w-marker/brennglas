@@ -1,0 +1,98 @@
+{
+  "name": "seedvr2-upscale",
+  "label": {
+    "de": "Hochskalieren",
+    "en": "Upscale"
+  },
+  "submit": {
+    "de": "Hochskalieren",
+    "en": "Upscale"
+  },
+  "inputs": {
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "label": {
+        "de": "Bild",
+        "en": "Image"
+      }
+    },
+    "target": {
+      "node": "IN_TARGET",
+      "field": "resize_type.longer_size",
+      "type": "int",
+      "default": 6144,
+      "min": 512,
+      "max": 8192,
+      "unit": "px",
+      "label": {
+        "de": "Zielgröße (lange Kante)",
+        "en": "Target size (long edge)"
+      },
+      "presets": [
+        {
+          "label": "4k",
+          "value": 4096
+        },
+        {
+          "label": "6k",
+          "value": 6144
+        },
+        {
+          "label": "8k",
+          "value": 8192
+        }
+      ]
+    },
+    "strength": {
+      "node": "IN_STRENGTH",
+      "field": "blend_factor",
+      "type": "float",
+      "default": 0.5,
+      "min": 0,
+      "max": 1,
+      "step": 0.05,
+      "label": {
+        "de": "Stärke (Anteil SeedVR2 gegenüber Lanczos)",
+        "en": "Strength (SeedVR2 vs. Lanczos)"
+      },
+      "advanced": true
+    },
+    "color": {
+      "node": "IN_COLOR",
+      "field": "color_correction_method",
+      "type": "enum",
+      "options": [
+        "lab",
+        "wavelet",
+        "adain",
+        "none"
+      ],
+      "default": "lab",
+      "label": {
+        "de": "Farbabgleich",
+        "en": "Color matching"
+      },
+      "advanced": true
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 9007199254740991,
+      "label": {
+        "de": "Seed",
+        "en": "Seed"
+      },
+      "advanced": true
+    }
+  },
+  "outputs": {
+    "image": {
+      "node": "OUT_IMAGE"
+    }
+  }
+}

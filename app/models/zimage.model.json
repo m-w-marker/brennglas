@@ -1,0 +1,19 @@
+{
+  "id": "zimage",
+  "name": "Z-Image Turbo",
+  "short": "Z-Image",
+  "vendor": "Tongyi-MAI (Alibaba)",
+  "order": 4,
+  "modes": {
+    "t2i": "zimage-t2i"
+  },
+  "license": {
+    "name": "Apache-2.0",
+    "url": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo",
+    "commercial": "yes",
+    "summary": {
+      "de": "Freie Lizenz: kommerzielle Nutzung, Änderung und Weitergabe erlaubt, Lizenz- und Copyright-Hinweis beibehalten.",
+      "en": "Permissive license: commercial use, modification and redistribution allowed; keep the license and copyright notice."
+    }
+  }
+}

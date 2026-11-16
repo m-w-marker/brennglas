@@ -1,0 +1,195 @@
+{
+  "name": "seedvr2-video",
+  "kind": "video",
+  "label": {
+    "de": "Video hochskalieren",
+    "en": "Upscale video"
+  },
+  "submit": {
+    "de": "Shot hochskalieren",
+    "en": "Upscale shot"
+  },
+  "job": {
+    "src": {
+      "type": "string",
+      "label": {
+        "de": "Quellordner (PNG/JPG-Sequenz)",
+        "en": "Source folder (PNG/JPG sequence)"
+      },
+      "placeholder": {
+        "de": "z. B. D:\\Renders\\Shot_010",
+        "en": "e.g. D:\\Renders\\Shot_010"
+      }
+    },
+    "dst": {
+      "type": "string",
+      "label": {
+        "de": "Zielordner",
+        "en": "Target folder"
+      },
+      "placeholder": {
+        "de": "wird angelegt, fertige Frames werden übersprungen",
+        "en": "created if missing, finished frames are skipped"
+      }
+    },
+    "still": {
+      "type": "enum",
+      "options": [
+        "jpg",
+        "png16",
+        "png8"
+      ],
+      "default": "jpg",
+      "label": {
+        "de": "Einzelbilder",
+        "en": "Frames"
+      },
+      "optionLabels": {
+        "jpg": {
+          "de": "JPG 100 % – am kleinsten",
+          "en": "JPG 100% – smallest"
+        },
+        "png16": {
+          "de": "PNG 16 bit – zum Graden, ca. 4× größer",
+          "en": "PNG 16-bit – for grading, ~4× larger"
+        },
+        "png8": {
+          "de": "PNG 8 bit",
+          "en": "PNG 8-bit"
+        }
+      }
+    },
+    "format": {
+      "type": "enum",
+      "options": [
+        "png",
+        "mp4",
+        "prores"
+      ],
+      "default": "png",
+      "label": {
+        "de": "Video zusätzlich zu den Einzelbildern",
+        "en": "Video in addition to the frames"
+      },
+      "optionLabels": {
+        "png": {
+          "de": "kein Video",
+          "en": "no video"
+        },
+        "mp4": {
+          "de": "MP4 (H.264)",
+          "en": "MP4 (H.264)"
+        },
+        "prores": {
+          "de": "ProRes 422 HQ (.mov)",
+          "en": "ProRes 422 HQ (.mov)"
+        }
+      }
+    },
+    "pattern": {
+      "type": "string",
+      "default": "*",
+      "advanced": true,
+      "label": {
+        "de": "Dateifilter (* und ?), z. B. Shot_010_*",
+        "en": "File filter (* and ?), e.g. Shot_010_*"
+      }
+    },
+    "fps": {
+      "type": "int",
+      "default": 25,
+      "min": 1,
+      "max": 120,
+      "advanced": true,
+      "label": {
+        "de": "Bildrate des Videos",
+        "en": "Video frame rate"
+      }
+    }
+  },
+  "inputs": {
+    "frames": {
+      "node": "IN_FRAMES",
+      "field": "directory",
+      "type": "string",
+      "hidden": true
+    },
+    "names": {
+      "node": "OUT_FRAMES",
+      "field": "filenames",
+      "type": "string",
+      "hidden": true
+    },
+    "size": {
+      "node": "IN_SIZE",
+      "field": "resize_type.longer_size",
+      "type": "int",
+      "default": 3840,
+      "min": 512,
+      "max": 3840,
+      "unit": "px",
+      "label": {
+        "de": "Zielgröße (lange Kante)",
+        "en": "Target size (long edge)"
+      },
+      "presets": [
+        {
+          "label": "HD",
+          "value": 1920
+        },
+        {
+          "label": "1440p",
+          "value": 2560
+        },
+        {
+          "label": "UHD",
+          "value": 3840
+        }
+      ]
+    },
+    "color": {
+      "node": "IN_COLOR",
+      "field": "color_correction_method",
+      "type": "enum",
+      "options": [
+        "lab",
+        "wavelet",
+        "adain",
+        "none"
+      ],
+      "default": "lab",
+      "advanced": true,
+      "label": {
+        "de": "Farbabgleich mit dem Original",
+        "en": "Colour match to the original"
+      }
+    },
+    "ext": {
+      "node": "OUT_FRAMES",
+      "field": "extension",
+      "type": "enum",
+      "options": [
+        "png",
+        "jpg"
+      ],
+      "default": "png",
+      "hidden": true
+    },
+    "bitdepth": {
+      "node": "OUT_FRAMES",
+      "field": "bit_depth",
+      "type": "enum",
+      "options": [
+        "8-bit",
+        "16-bit"
+      ],
+      "default": "16-bit",
+      "hidden": true
+    }
+  },
+  "outputs": {
+    "frames": {
+      "node": "OUT_FRAMES"
+    }
+  }
+}

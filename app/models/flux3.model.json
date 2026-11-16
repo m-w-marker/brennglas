@@ -1,0 +1,20 @@
+{
+  "id": "flux3",
+  "name": "FLUX 3 Image Klein",
+  "short": "FLUX 3",
+  "vendor": "Black Forest Labs",
+  "order": 5,
+  "modes": {
+    "t2i": "flux3-t2i",
+    "edit": "flux3-edit"
+  },
+  "license": {
+    "name": "FLUX Kommunity License",
+    "url": "https://huggingface.co/black-forest-labs/flux-3-image-klein",
+    "commercial": "limited",
+    "summary": {
+      "de": "Kommerziell nur bei unter 5 Mio. USD Jahresumsatz (samt verbundenen Firmen), dann mit Pflicht zu Inhaltsfiltern (Abschnitt 2.e). Bilder gelten nicht als abgeleitetes Werk.",
+      "en": "Commercial use only below USD 5M annual revenue (including affiliates), and then content filters are mandatory (section 2.e). Generated images are not derivatives."
+    }
+  }
+}

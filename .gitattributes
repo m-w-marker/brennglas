@@ -1,0 +1,8 @@
+# Zeilenenden festnageln: im Repo UND im Arbeitsbaum LF, unabhaengig von core.autocrlf.
+# Ohne das holt ein Klon auf Windows CRLF, und die naechste Bearbeitung einer Datei
+# erzeugt einen Voll-Diff statt der einen geaenderten Zeile.
+* text=auto eol=lf
+
+# Windows-Batch braucht CRLF, sonst brechen mehrzeilige Konstrukte in cmd.exe.
+*.bat text eol=crlf
+*.cmd text eol=crlf

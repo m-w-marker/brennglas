@@ -1,0 +1,19 @@
+{
+  "id": "promptgen",
+  "name": "Prompt-Assistent",
+  "short": "Prompt",
+  "vendor": "Google Gemma 4 / Qwen 3.5",
+  "order": 10,
+  "modes": {
+    "prompt": "promptgen-prompt"
+  },
+  "license": {
+    "name": "Apache License 2.0",
+    "url": "https://huggingface.co/Qwen/Qwen3.5-9B",
+    "commercial": "yes",
+    "summary": {
+      "de": "Gemma 4 E2B und Qwen 3.5 9B stehen beide unter Apache-2.0: frei nutzbar, auch kommerziell.",
+      "en": "Gemma 4 E2B and Qwen 3.5 9B are both Apache-2.0: free to use, including commercially."
+    }
+  }
+}

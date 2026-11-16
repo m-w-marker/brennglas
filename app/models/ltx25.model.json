@@ -1,0 +1,21 @@
+{
+  "id": "ltx25",
+  "name": "LTX-2.5 22B",
+  "short": "LTX 2.5",
+  "vendor": "Lightricks",
+  "order": 6,
+  "modes": {
+    "t2v": "ltx25-t2v",
+    "i2v": "ltx25-i2v",
+    "flf2v": "ltx25-flf2v"
+  },
+  "license": {
+    "name": "LTX-2 Community License",
+    "url": "https://huggingface.co/Lightricks/LTX-2.5/blob/main/LICENSE",
+    "commercial": "limited",
+    "summary": {
+      "de": "Kostenlos, auch kommerziell, solange das Unternehmen unter 10 Mio. US-$ Jahresumsatz bleibt; darüber nur mit Lizenz von Lightricks.",
+      "en": "Free, including commercial use, while the company stays below US$10M annual revenue; above that only with a licence from Lightricks."
+    }
+  }
+}

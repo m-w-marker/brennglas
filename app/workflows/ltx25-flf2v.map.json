@@ -1,0 +1,426 @@
+{
+  "name": "ltx25-flf2v",
+  "label": {
+    "de": "Start + Ende",
+    "en": "First + last frame"
+  },
+  "submit": {
+    "de": "Video erzeugen",
+    "en": "Generate video"
+  },
+  "inputs": {
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "label": {
+        "de": "Startbild (1) und Endbild (2)",
+        "en": "First frame (1) and last frame (2)"
+      }
+    },
+    "prompt": {
+      "node": "IN_PROMPT",
+      "field": "value",
+      "type": "string",
+      "label": {
+        "de": "Prompt",
+        "en": "Prompt"
+      },
+      "placeholder": {
+        "de": "Szene, Bewegung, Kamera (z. B. langsame Kamerafahrt nach links) – englisch wirkt am besten",
+        "en": "Scene, motion, camera (e.g. slow dolly to the left)"
+      }
+    },
+    "camera": {
+      "node": "IN_CAMERA",
+      "field": "value",
+      "type": "enum",
+      "default": "",
+      "options": [
+        "",
+        "The camera is locked off on a tripod and stays completely still.",
+        "The camera slowly pushes in towards the subject.",
+        "The camera slowly pulls back, revealing more of the surroundings.",
+        "The camera glides smoothly sideways to the left, parallel to the subject.",
+        "The camera glides smoothly sideways to the right, parallel to the subject.",
+        "The camera pans slowly to the left from a fixed position.",
+        "The camera pans slowly to the right from a fixed position.",
+        "The camera tilts slowly upwards from a fixed position.",
+        "The camera tilts slowly downwards from a fixed position.",
+        "The camera moves in a smooth arc around the subject to the left, keeping it centred.",
+        "The camera moves in a smooth arc around the subject to the right, keeping it centred.",
+        "The camera circles a full 360 degrees around the subject, which stays centred.",
+        "The camera cranes up smoothly, rising high above the scene.",
+        "The camera cranes down smoothly from high above to eye level.",
+        "The camera tracks alongside the subject, following its movement at the same speed.",
+        "The camera follows the subject from behind at a steady distance.",
+        "The camera moves backwards in front of the subject as it walks towards the camera, keeping the full body in frame at a constant distance.",
+        "Handheld camera with subtle, natural shake and small reframing movements.",
+        "A sudden, very fast zoom straight into the subject.",
+        "A dolly zoom: the camera moves backwards while zooming in, the subject stays the same size and the background stretches.",
+        "An FPV drone shot flying fast and low through the scene with dynamic banking turns.",
+        "An aerial drone shot gliding slowly high above the scene.",
+        "A very fast whip pan to the side with strong motion blur.",
+        "Bullet time: the action is frozen in mid-motion while the camera sweeps around the subject."
+      ],
+      "optionLabels": {
+        "": {
+          "de": "vom Modell",
+          "en": "model decides"
+        },
+        "The camera is locked off on a tripod and stays completely still.": {
+          "de": "Stativ, ruhig",
+          "en": "Locked-off tripod"
+        },
+        "The camera slowly pushes in towards the subject.": {
+          "de": "Langsam heranfahren",
+          "en": "Slow push in"
+        },
+        "The camera slowly pulls back, revealing more of the surroundings.": {
+          "de": "Langsam zurückfahren",
+          "en": "Slow pull out"
+        },
+        "The camera glides smoothly sideways to the left, parallel to the subject.": {
+          "de": "Seitlich nach links",
+          "en": "Truck left"
+        },
+        "The camera glides smoothly sideways to the right, parallel to the subject.": {
+          "de": "Seitlich nach rechts",
+          "en": "Truck right"
+        },
+        "The camera pans slowly to the left from a fixed position.": {
+          "de": "Schwenk links",
+          "en": "Pan left"
+        },
+        "The camera pans slowly to the right from a fixed position.": {
+          "de": "Schwenk rechts",
+          "en": "Pan right"
+        },
+        "The camera tilts slowly upwards from a fixed position.": {
+          "de": "Neigen hoch",
+          "en": "Tilt up"
+        },
+        "The camera tilts slowly downwards from a fixed position.": {
+          "de": "Neigen runter",
+          "en": "Tilt down"
+        },
+        "The camera moves in a smooth arc around the subject to the left, keeping it centred.": {
+          "de": "Bogen um das Motiv links",
+          "en": "Arc left"
+        },
+        "The camera moves in a smooth arc around the subject to the right, keeping it centred.": {
+          "de": "Bogen um das Motiv rechts",
+          "en": "Arc right"
+        },
+        "The camera circles a full 360 degrees around the subject, which stays centred.": {
+          "de": "360°-Umrundung",
+          "en": "360° orbit"
+        },
+        "The camera cranes up smoothly, rising high above the scene.": {
+          "de": "Kran hoch",
+          "en": "Crane up"
+        },
+        "The camera cranes down smoothly from high above to eye level.": {
+          "de": "Kran runter",
+          "en": "Crane down"
+        },
+        "The camera tracks alongside the subject, following its movement at the same speed.": {
+          "de": "Mitfahrt",
+          "en": "Tracking shot"
+        },
+        "The camera follows the subject from behind at a steady distance.": {
+          "de": "Verfolgung von hinten",
+          "en": "Follow from behind"
+        },
+        "The camera moves backwards in front of the subject as it walks towards the camera, keeping the full body in frame at a constant distance.": {
+          "de": "Vorausfahrt (Motiv kommt auf die Kamera zu)",
+          "en": "Lead shot (subject walks towards camera)"
+        },
+        "Handheld camera with subtle, natural shake and small reframing movements.": {
+          "de": "Handkamera",
+          "en": "Handheld"
+        },
+        "A sudden, very fast zoom straight into the subject.": {
+          "de": "Crash-Zoom",
+          "en": "Crash zoom"
+        },
+        "A dolly zoom: the camera moves backwards while zooming in, the subject stays the same size and the background stretches.": {
+          "de": "Dolly-Zoom (Vertigo)",
+          "en": "Dolly zoom"
+        },
+        "An FPV drone shot flying fast and low through the scene with dynamic banking turns.": {
+          "de": "FPV-Drohne",
+          "en": "FPV drone"
+        },
+        "An aerial drone shot gliding slowly high above the scene.": {
+          "de": "Luftaufnahme",
+          "en": "Aerial flyover"
+        },
+        "A very fast whip pan to the side with strong motion blur.": {
+          "de": "Reißschwenk",
+          "en": "Whip pan"
+        },
+        "Bullet time: the action is frozen in mid-motion while the camera sweeps around the subject.": {
+          "de": "Bullet Time",
+          "en": "Bullet time"
+        }
+      },
+      "label": {
+        "de": "Kamera",
+        "en": "Camera"
+      },
+      "optionHints": {
+        "The camera moves in a smooth arc around the subject to the left, keeping it centred.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "The camera moves in a smooth arc around the subject to the right, keeping it centred.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "The camera circles a full 360 degrees around the subject, which stays centred.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "The camera cranes up smoothly, rising high above the scene.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "The camera cranes down smoothly from high above to eye level.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "An FPV drone shot flying fast and low through the scene with dynamic banking turns.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "An aerial drone shot gliding slowly high above the scene.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        },
+        "Bullet time: the action is frozen in mid-motion while the camera sweeps around the subject.": {
+          "de": "Große Bewegung: Bei Bild zu Video wirkt sie erst ab etwa 5 s, die Prompt-Erweiterung verstärkt sie.",
+          "en": "Large move: in image to video it only shows from about 5 s; the prompt enhancer strengthens it."
+        }
+      }
+    },
+    "look": {
+      "node": "IN_LOOK",
+      "field": "value",
+      "type": "enum",
+      "default": "",
+      "options": [
+        "",
+        "Cinematic look, shot on 35mm film, shallow depth of field, soft film grain, rich colour grade.",
+        "Documentary look, natural available light, realistic colours.",
+        "Warm golden-hour sunlight, long soft shadows, glowing highlights.",
+        "Night scene lit by neon signs, saturated magenta and cyan reflections.",
+        "Black-and-white film noir look, hard light, deep shadows, high contrast.",
+        "Vintage 16mm film look, faded colours, visible grain, slight gate weave.",
+        "Clean commercial studio look, bright even lighting, crisp detail.",
+        "Moody teal-and-orange colour grade, low-key lighting.",
+        "Hand-drawn anime style, clean line art, cel shading."
+      ],
+      "optionLabels": {
+        "": {
+          "de": "vom Modell",
+          "en": "model decides"
+        },
+        "Cinematic look, shot on 35mm film, shallow depth of field, soft film grain, rich colour grade.": {
+          "de": "Kino",
+          "en": "Cinematic"
+        },
+        "Documentary look, natural available light, realistic colours.": {
+          "de": "Dokumentarisch",
+          "en": "Documentary"
+        },
+        "Warm golden-hour sunlight, long soft shadows, glowing highlights.": {
+          "de": "Goldene Stunde",
+          "en": "Golden hour"
+        },
+        "Night scene lit by neon signs, saturated magenta and cyan reflections.": {
+          "de": "Neon-Nacht",
+          "en": "Neon night"
+        },
+        "Black-and-white film noir look, hard light, deep shadows, high contrast.": {
+          "de": "Film noir",
+          "en": "Film noir"
+        },
+        "Vintage 16mm film look, faded colours, visible grain, slight gate weave.": {
+          "de": "Vintage 16 mm",
+          "en": "Vintage 16mm"
+        },
+        "Clean commercial studio look, bright even lighting, crisp detail.": {
+          "de": "Werbung, Studio",
+          "en": "Commercial studio"
+        },
+        "Moody teal-and-orange colour grade, low-key lighting.": {
+          "de": "Düster, Teal-Orange",
+          "en": "Moody teal-orange"
+        },
+        "Hand-drawn anime style, clean line art, cel shading.": {
+          "de": "Anime",
+          "en": "Anime"
+        }
+      },
+      "label": {
+        "de": "Look",
+        "en": "Look"
+      }
+    },
+    "aspect": {
+      "node": "IN_ASPECT",
+      "field": "value",
+      "type": "float",
+      "default": 0,
+      "min": 0,
+      "max": 4,
+      "label": {
+        "de": "Seitenverhältnis (fest = Startbild wird mittig beschnitten)",
+        "en": "Aspect ratio (fixed = first frame is centre-cropped)"
+      },
+      "presets": [
+        {
+          "label": {
+            "de": "Original",
+            "en": "Original"
+          },
+          "value": 0
+        },
+        {
+          "label": "16:9",
+          "value": 1.7778
+        },
+        {
+          "label": "9:16",
+          "value": 0.5625
+        },
+        {
+          "label": "1:1",
+          "value": 1
+        },
+        {
+          "label": "4:3",
+          "value": 1.3333
+        },
+        {
+          "label": "21:9",
+          "value": 2.3333
+        }
+      ]
+    },
+    "size": {
+      "node": "IN_SIZE",
+      "field": "value",
+      "type": "int",
+      "default": 720,
+      "min": 256,
+      "max": 1440,
+      "unit": "px",
+      "label": {
+        "de": "Auflösung (kurze Kante)",
+        "en": "Resolution (short edge)"
+      },
+      "presets": [
+        {
+          "label": "480p",
+          "value": 480
+        },
+        {
+          "label": "720p",
+          "value": 720
+        },
+        {
+          "label": "1080p",
+          "value": 1080
+        }
+      ]
+    },
+    "duration": {
+      "node": "IN_DURATION",
+      "field": "value",
+      "type": "int",
+      "default": 5,
+      "min": 1,
+      "max": 10,
+      "label": {
+        "de": "Länge",
+        "en": "Length"
+      },
+      "presets": [
+        {
+          "label": "3 s",
+          "value": 3
+        },
+        {
+          "label": "5 s",
+          "value": 5
+        },
+        {
+          "label": "8 s",
+          "value": 8
+        },
+        {
+          "label": "10 s",
+          "value": 10
+        }
+      ]
+    },
+    "pe": {
+      "node": "IN_PE",
+      "field": "value",
+      "type": "bool",
+      "default": false,
+      "label": {
+        "de": "Prompt-Erweiterung",
+        "en": "Prompt enhancer"
+      }
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "noise_seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 4294967295,
+      "label": "Seed",
+      "advanced": true
+    },
+    "fps": {
+      "node": "IN_FPS",
+      "field": "value",
+      "type": "int",
+      "default": 24,
+      "min": 12,
+      "max": 50,
+      "label": {
+        "de": "Bilder pro Sekunde (24 = nativ, sonst ruckelt es)",
+        "en": "Frames per second (24 = native, others judder)"
+      },
+      "advanced": true
+    }
+  },
+  "refs": {
+    "min": 1,
+    "max": 1,
+    "token": "",
+    "targets": [
+      {
+        "node": "IN_LAST",
+        "field": "input"
+      }
+    ]
+  },
+  "outputs": {
+    "image": {
+      "node": "OUT_IMAGE"
+    },
+    "video": {
+      "node": "OUT_VIDEO"
+    },
+    "expandedPrompt": {
+      "node": "OUT_PROMPT",
+      "optional": true
+    }
+  }
+}

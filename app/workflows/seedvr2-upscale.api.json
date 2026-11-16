@@ -1,0 +1,191 @@
+{
+  "1": {
+    "inputs": {
+      "image": "beispiel.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "IN_IMAGE"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "brennglas_upscale",
+      "images": [
+        "60",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "OUT_IMAGE"
+    }
+  },
+  "48": {
+    "inputs": {
+      "pixels": [
+        "58",
+        0
+      ],
+      "vae": [
+        "51",
+        0
+      ],
+      "tile_size": 512,
+      "overlap": 128,
+      "temporal_size": 4096,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEEncodeTiled",
+    "_meta": {
+      "title": "VAE Encode (Tiled)"
+    }
+  },
+  "51": {
+    "inputs": {
+      "vae_name": "seedvr2_ema_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "52": {
+    "inputs": {
+      "unet_name": "seedvr2_7b_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "54": {
+    "inputs": {
+      "model": [
+        "52",
+        0
+      ],
+      "positive": [
+        "61",
+        0
+      ],
+      "negative": [
+        "61",
+        1
+      ],
+      "latent_image": [
+        "48",
+        0
+      ],
+      "seed": 4242,
+      "steps": 1,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "IN_SEED"
+    }
+  },
+  "55": {
+    "inputs": {
+      "samples": [
+        "54",
+        0
+      ],
+      "vae": [
+        "51",
+        0
+      ],
+      "tile_size": 512,
+      "overlap": 128,
+      "temporal_size": 4096,
+      "temporal_overlap": 8
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "57": {
+    "inputs": {
+      "input": [
+        "1",
+        0
+      ],
+      "resize_type": "scale longer dimension",
+      "resize_type.longer_size": 6144,
+      "scale_method": "lanczos"
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "IN_TARGET"
+    }
+  },
+  "58": {
+    "inputs": {
+      "resized_images": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "SeedVR2Preprocess",
+    "_meta": {
+      "title": "SeedVR2 Preprocess"
+    }
+  },
+  "59": {
+    "inputs": {
+      "images": [
+        "55",
+        0
+      ],
+      "original_resized_images": [
+        "57",
+        0
+      ],
+      "color_correction_method": "lab"
+    },
+    "class_type": "SeedVR2PostProcessing",
+    "_meta": {
+      "title": "IN_COLOR"
+    }
+  },
+  "60": {
+    "inputs": {
+      "image1": [
+        "57",
+        0
+      ],
+      "image2": [
+        "59",
+        0
+      ],
+      "blend_factor": 0.5,
+      "blend_mode": "normal"
+    },
+    "class_type": "ImageBlend",
+    "_meta": {
+      "title": "IN_STRENGTH"
+    }
+  },
+  "61": {
+    "inputs": {
+      "model": [
+        "52",
+        0
+      ],
+      "vae_conditioning": [
+        "48",
+        0
+      ]
+    },
+    "class_type": "SeedVR2Conditioning",
+    "_meta": {
+      "title": "SeedVR2 Conditioning"
+    }
+  }
+}

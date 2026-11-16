@@ -1,0 +1,101 @@
+{
+  "name": "promptgen-prompt",
+  "kind": "text",
+  "label": {
+    "de": "Prompt schreiben",
+    "en": "Write prompt"
+  },
+  "submit": {
+    "de": "Prompt erzeugen",
+    "en": "Generate prompt"
+  },
+  "inputs": {
+    "prompt": {
+      "node": "IN_PROMPT",
+      "field": "value",
+      "type": "string",
+      "label": {
+        "de": "Idee",
+        "en": "Idea"
+      },
+      "placeholder": {
+        "de": "Stichworte oder ein Satz, gern auf Deutsch",
+        "en": "Keywords or a sentence, any language"
+      }
+    },
+    "target": {
+      "node": "IN_TARGET",
+      "field": "value",
+      "type": "enum",
+      "default": "You write prompts for a text-to-image model. Turn the user's idea into one rich, natural-language description of a single still image: the subject and what it looks like, the setting, composition and camera viewpoint, lighting, colour palette, material and texture details, and the style or medium. 60 to 150 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.",
+      "options": [
+        "You write prompts for a text-to-image model. Turn the user's idea into one rich, natural-language description of a single still image: the subject and what it looks like, the setting, composition and camera viewpoint, lighting, colour palette, material and texture details, and the style or medium. 60 to 150 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.",
+        "You write instructions for an image-editing model. The attached image is the picture to edit. Turn the user's wish into one short, precise edit instruction: say exactly what to change, where, and how it should look afterwards, and add \"keep everything else unchanged\". Refer to things by what they look like in the image. At most 60 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.",
+        "You write prompts for the LTX text-to-video model. Turn the user's idea into one flowing paragraph that reads like a shot description: start with the main action, then describe the subject's appearance, the setting, how things move over time in order, the camera movement and shot size, lighting and colour, and ambient sound or dialogue if fitting. Present tense, concrete and visual, 80 to 180 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.",
+        "You write prompts for the LTX image-to-video model. The attached image is the first frame. Describe what happens next as one flowing paragraph: the motion of the subjects in order, how the environment and light change, the camera movement, and ambient sound if fitting. Do not re-describe static details already visible in the image. Present tense, 50 to 120 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.",
+        "You write prompts for an image-to-video model whose camera path is set separately. The attached image is the first frame. Describe only the motion of the subjects and the environment (people, animals, objects, light, weather, particles) in the order it happens. Never describe camera movement, zoom, framing or shot type. Do not re-describe static details visible in the image. At most 80 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists."
+      ],
+      "optionLabels": {
+        "You write prompts for a text-to-image model. Turn the user's idea into one rich, natural-language description of a single still image: the subject and what it looks like, the setting, composition and camera viewpoint, lighting, colour palette, material and texture details, and the style or medium. 60 to 150 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.": {
+          "de": "Bild erzeugen",
+          "en": "Generate image"
+        },
+        "You write instructions for an image-editing model. The attached image is the picture to edit. Turn the user's wish into one short, precise edit instruction: say exactly what to change, where, and how it should look afterwards, and add \"keep everything else unchanged\". Refer to things by what they look like in the image. At most 60 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.": {
+          "de": "Bild bearbeiten",
+          "en": "Edit image"
+        },
+        "You write prompts for the LTX text-to-video model. Turn the user's idea into one flowing paragraph that reads like a shot description: start with the main action, then describe the subject's appearance, the setting, how things move over time in order, the camera movement and shot size, lighting and colour, and ambient sound or dialogue if fitting. Present tense, concrete and visual, 80 to 180 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.": {
+          "de": "Video aus Text (LTX)",
+          "en": "Text to video (LTX)"
+        },
+        "You write prompts for the LTX image-to-video model. The attached image is the first frame. Describe what happens next as one flowing paragraph: the motion of the subjects in order, how the environment and light change, the camera movement, and ambient sound if fitting. Do not re-describe static details already visible in the image. Present tense, 50 to 120 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.": {
+          "de": "Video aus Bild (LTX)",
+          "en": "Image to video (LTX)"
+        },
+        "You write prompts for an image-to-video model whose camera path is set separately. The attached image is the first frame. Describe only the motion of the subjects and the environment (people, animals, objects, light, weather, particles) in the order it happens. Never describe camera movement, zoom, framing or shot type. Do not re-describe static details visible in the image. At most 80 words.\nKeep every concrete detail the user gives (subjects, names, colours, numbers, text to render). If an image is attached, use what it shows. Write in English regardless of the input language. Output only the prompt itself: no title, no quotes, no explanation, no lists.": {
+          "de": "Wan-Kamerafahrt",
+          "en": "Wan camera move"
+        }
+      },
+      "label": {
+        "de": "Wofür",
+        "en": "For"
+      }
+    },
+    "large": {
+      "node": "IN_LARGE",
+      "field": "value",
+      "type": "bool",
+      "default": false,
+      "label": {
+        "de": "Großes Sprachmodell (Qwen 3.5 9B statt Gemma 4 E2B – reicher, etwas langsamer)",
+        "en": "Large language model (Qwen 3.5 9B instead of Gemma 4 E2B – richer, a bit slower)"
+      }
+    },
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "optional": true,
+      "label": {
+        "de": "Bild (optional – Startbild, zu bearbeitendes Bild oder Vorlage)",
+        "en": "Image (optional – first frame, image to edit or reference)"
+      }
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "sampling_mode.seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 4294967295,
+      "label": "Seed",
+      "advanced": true
+    }
+  },
+  "outputs": {
+    "text": {
+      "node": "OUT_TEXT"
+    }
+  }
+}
