@@ -1,0 +1,88 @@
+[
+  {
+    "file": "living-room.jpg",
+    "workflow": "krea2-t2i",
+    "prompt": "Japandi living room: low linen sofa, round paper lantern, light oak floor, a low wooden coffee table with nothing on it, large window with soft afternoon light, calm neutral palette, wide interior photography",
+    "params": {
+      "aspect": "16:9 (Widescreen)",
+      "megapixels": 2,
+      "seed": 5916446494110340,
+      "enhance": false
+    }
+  },
+  {
+    "file": "blue-vase.jpg",
+    "workflow": "flux3-t2i",
+    "prompt": "A tall fluted ceramic vase in deep cobalt blue glaze, centered on a seamless white background, soft studio light, clean product photo",
+    "params": {
+      "aspect": "1:1 (Square)",
+      "megapixels": 2,
+      "seed": 7004986214926018,
+      "enhance": false
+    }
+  },
+  {
+    "file": "suit.jpg",
+    "workflow": "flux3-t2i",
+    "prompt": "Male fashion model in an oversized charcoal wool suit and white t-shirt, sitting relaxed on a sculptural white chair, hands resting on his knees, seamless pale grey studio backdrop, soft key light, minimalist menswear campaign",
+    "params": {
+      "aspect": "2:3 (Portrait Photo)",
+      "megapixels": 2,
+      "seed": 8512624308301796,
+      "enhance": false
+    }
+  },
+  {
+    "file": "breakfast.jpg",
+    "workflow": "krea2-t2i",
+    "prompt": "Breakfast on a sunny Mediterranean terrace: espresso cups, croissants, figs and olive branches on a white linen tablecloth, rattan chairs, sea in the soft background, warm morning light, editorial lifestyle photography",
+    "params": {
+      "aspect": "3:2 (Photo)",
+      "megapixels": 2,
+      "seed": 3938543899843148,
+      "enhance": false
+    }
+  },
+  {
+    "file": "golden-retriever.jpg",
+    "workflow": "zimage-t2i",
+    "prompt": "A golden retriever resting on a cream boucle sofa, head on its paws, soft morning light through sheer curtains, cozy Scandinavian living room, shallow depth of field, lifestyle photography",
+    "params": {
+      "aspect": "3:4 (Portrait Standard)",
+      "megapixels": 2,
+      "seed": 3479359713557658
+    }
+  },
+  {
+    "file": "ceramic-vases.jpg",
+    "workflow": "flux3-t2i",
+    "prompt": "Group of handmade ceramic vases in matte sage green, terracotta and sand tones on a linen-covered plinth, dried pampas grass in one vase, soft diffused daylight, gentle shadows, still life product photography",
+    "params": {
+      "aspect": "1:1 (Square)",
+      "megapixels": 2,
+      "seed": 5010679377949246,
+      "enhance": false
+    }
+  },
+  {
+    "file": "lounge-chair.jpg",
+    "workflow": "krea2-t2i",
+    "prompt": "A mid-century lounge chair in cognac leather and walnut in a sunlit minimalist room, travertine floor, white plaster wall, long soft shadows from a tall window, architectural interior photography",
+    "params": {
+      "aspect": "3:2 (Photo)",
+      "megapixels": 2,
+      "seed": 6647529087236774,
+      "enhance": false
+    }
+  },
+  {
+    "file": "camel-coat.jpg",
+    "workflow": "zimage-t2i",
+    "prompt": "Editorial fashion portrait of a woman in a camel wool coat with sculptural silver earrings, hair in a low bun, calm gaze, soft window light, muted warm beige backdrop, shot on medium format, fine film grain, high-end magazine look",
+    "params": {
+      "aspect": "3:4 (Portrait Standard)",
+      "megapixels": 2,
+      "seed": 6163360502769504
+    }
+  }
+]

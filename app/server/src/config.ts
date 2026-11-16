@@ -15,4 +15,5 @@ export const config = {
   dataDir: resolve(APP_DIR, process.env.DATA_DIR ?? './data'),
   workflowsDir: resolve(APP_DIR, 'workflows'),
   modelsDir: resolve(APP_DIR, 'models'),
+  samplesDir: resolve(APP_DIR, 'samples'),
 };

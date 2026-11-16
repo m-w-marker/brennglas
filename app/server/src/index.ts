@@ -1,4 +1,4 @@
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import Fastify from 'fastify';
 import { config } from './config.ts';
@@ -8,6 +8,7 @@ import { adoptLegacyDb, openDb } from './db.ts';
 import { Jobs } from './jobs.ts';
 import { loadModels } from './models.ts';
 import { registerApi } from './routes/api.ts';
+import { seedSamples } from './samples.ts';
 import { VideoJobs } from './video.ts';
 
 const workflows = new Map<string, Workflow>();
@@ -20,7 +21,16 @@ const models = loadModels(config.modelsDir, workflows);
 
 const dbFile = join(config.dataDir, 'brennglas.db');
 if (adoptLegacyDb(dbFile, join(config.dataDir, 'h3studio.db'))) console.log('Galerie aus h3studio.db übernommen');
+// Beispiele nur beim allerersten Start: wer seine Galerie später leert, bekommt sie nicht zurück.
+const firstStart = !existsSync(dbFile);
 const db = openDb(dbFile);
+if (firstStart) {
+  try {
+    console.log(`${await seedSamples(db, config.dataDir, config.samplesDir)} Beispielbilder in die Galerie gelegt`);
+  } catch (e) {
+    console.warn(`Beispielbilder übersprungen: ${(e as Error).message}`);
+  }
+}
 const comfy = new ComfyClient(config.comfyUrl);
 const jobs = new Jobs(db, comfy, workflows, config.dataDir);
 const videoWf = [...workflows.values()].find((w) => w.map.kind === 'video');

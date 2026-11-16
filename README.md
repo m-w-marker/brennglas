@@ -64,6 +64,10 @@ Double click `start.bat`. It starts ComfyUI, Brennglas and your browser.
 
 Or start ComfyUI yourself, then run `pnpm dev` in `app` and open http://127.0.0.1:5173.
 
+On the first start the gallery holds eight sample images, all made with Brennglas.
+Click one and press Remix to see its prompt and settings.
+To try an edit, open the living room, press Keep editing and add the blue vase as a reference.
+
 ## Use with Claude
 
 The file `.mcp.json` registers the Brennglas MCP server.
