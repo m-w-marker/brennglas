@@ -94,7 +94,7 @@ server.registerTool('list_models', {
     const { models, byName } = await catalogue();
     const out = models.map((m) => ({
       id: m.id, name: m.name, license: `${m.license.name} (commercial: ${m.license.commercial})`,
-      ...(m.missing?.length ? { missing: m.missing } : {}),
+      ...(m.missing?.length ? { missing: m.missing.map((f) => (m.downloads[f] ? `${f} (download: ${m.downloads[f]})` : f)) } : {}),
       modes: Object.fromEntries(Object.entries(m.modes).filter(([, w]) => w && byName.get(w)?.kind !== 'video').map(([mode, w]) => {
         const wf = byName.get(w as string) as WorkflowInfo;
         return [mode, { workflow: wf.name, ...(wf.refs ? { extraImages: wf.refs, refToken: wf.refToken } : {}),

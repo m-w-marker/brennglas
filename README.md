@@ -108,7 +108,8 @@ The table is a short summary, not legal advice. Read the license yourself.
 Download the files of the models you want and put each one into the named folder under `ComfyUI\models`.
 A file that several models share is needed only once. The links point to the same files the official ComfyUI templates use.
 
-Two models are gated on Hugging Face: [LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) and [FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy).
+<!-- model-files:start -->
+Gated on Hugging Face: [FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy), [LTX-2.5 22B](https://huggingface.co/Lightricks/LTX-2.5).
 Log in, open the model page and accept the license once. Then their links work in your browser.
 
 <details><summary>MiniMax H3 Image</summary>
@@ -209,6 +210,7 @@ Log in, open the model page and accept the license once. Then their links work i
 | [qwen3.5_9b_w4a8_gptq.safetensors](https://huggingface.co/Comfy-Org/Qwen3.5/resolve/main/text_encoders/qwen3.5_9b_w4a8_gptq.safetensors) | `text_encoders` |
 
 </details>
+<!-- model-files:end -->
 
 ## Setup
 

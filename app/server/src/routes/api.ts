@@ -57,7 +57,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
 
   app.get('/api/models', async (): Promise<ModelInfo[]> => {
     const missing = await missingFiles(models, listFolder).catch(() => null);
-    return models.map(({ spec }) => ({ ...spec, missing: missing?.get(spec.id) ?? null }));
+    return models.map(({ spec, downloads }) => ({ ...spec, missing: missing?.get(spec.id) ?? null, downloads }));
   });
 
   app.get('/api/workflows', async (): Promise<WorkflowInfo[]> =>

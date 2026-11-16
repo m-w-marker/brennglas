@@ -384,9 +384,13 @@ export function inputPanel(
     licence.replaceChildren(t('lic.label'), ' ',
       h('a', { href: m.license.url, target: '_blank', rel: 'noopener noreferrer' }, m.license.name), ` · ${commercialLabel(m)}`);
     licence.title = tx(m.license.summary) ?? '';
-    const gone = m.missing === null ? t('model.unknown') : m.missing.length ? t('model.missing', { files: m.missing.join(', ') }) : '';
-    missing.textContent = gone;
-    missing.classList.toggle('hidden', !gone);
+    const links = (m.missing ?? []).flatMap((file, i) => {
+      const url = m.downloads[file];
+      return [i ? ', ' : ' ', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, file) : file];
+    });
+    if (m.missing === null) missing.replaceChildren(t('model.unknown'));
+    else missing.replaceChildren(...(m.missing.length ? [t('model.missing'), ...links] : []));
+    missing.classList.toggle('hidden', m.missing !== null && !m.missing.length);
     submit.disabled = busy || !!m.missing?.length;
     submit.textContent = tx(f.wf.submit) ?? t(f.image ? 'form.edit' : 'form.generate');
     count.classList.toggle('hidden', f.wf.kind === 'video' || f.wf.kind === 'text');

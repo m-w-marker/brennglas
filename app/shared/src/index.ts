@@ -104,6 +104,8 @@ export interface MemoryStats {
 export interface ModelInfo extends ModelSpec {
   /** Fehlende Dateien als ordner/datei; null = ComfyUI nicht erreichbar, unbekannt. */
   missing: string[] | null;
+  /** Download-Link je Datei (ordner/datei) aus models/downloads.json. */
+  downloads: Record<string, string>;
 }
 
 export interface WorkflowInfo {

@@ -36,9 +36,21 @@ export function requiredFiles(api: ApiGraph): ModelFile[] {
 export interface Model {
   spec: ModelSpec;
   files: ModelFile[];
+  downloads: Record<string, string>;
+}
+
+/** Download-Links je ordner/datei; fehlt oder bricht die Liste, startet die App trotzdem, nur ohne Links. */
+export function loadDownloads(dir: string): Record<string, { url: string; gated?: boolean }> {
+  try {
+    const v: unknown = JSON.parse(readFileSync(join(dir, 'downloads.json'), 'utf8'));
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, { url: string; gated?: boolean }>) : {};
+  } catch {
+    return {};
+  }
 }
 
 export function loadModels(dir: string, workflows: Map<string, Workflow>): Model[] {
+  const links = loadDownloads(dir);
   const models: Model[] = [];
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.model.json'))) {
     const spec = JSON.parse(readFileSync(join(dir, f), 'utf8')) as ModelSpec;
@@ -49,7 +61,12 @@ export function loadModels(dir: string, workflows: Map<string, Workflow>): Model
       if (!wf) throw new Error(`${f}: Workflow ${String(wfName)} fehlt`);
       for (const file of requiredFiles(wf.api)) files.set(`${file.folder}/${file.name}`, file);
     }
-    models.push({ spec, files: [...files.values()] });
+    const downloads: Record<string, string> = {};
+    for (const key of files.keys()) {
+      const url = links[key]?.url;
+      if (typeof url === 'string') downloads[key] = url;
+    }
+    models.push({ spec, files: [...files.values()], downloads });
   }
   return models.sort((a, b) => a.spec.order - b.spec.order);
 }
