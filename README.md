@@ -273,7 +273,6 @@ To try an edit, open the living room, press Keep editing and add the blue vase a
   All models would run through cloud APIs such as fal or Replicate, and you pay the provider per image.
   Would you use this? Please open an issue and tell me.
 - **16 GB graphics cards.** In the works: measured VRAM needs per model, and lighter model variants where 16 GB is not enough.
-- **A one click installer.** The model part is done (`install.bat`). In the works: it also sets up Node.js, ComfyUI and Brennglas itself.
 - **Remote access**, for example over Tailscale, is not a feature yet. If you need it, open an issue.
 
 ## License
