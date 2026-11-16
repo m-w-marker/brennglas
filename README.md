@@ -96,7 +96,7 @@ The table is a short summary, not legal advice. Read the license yourself.
 ## Requirements
 
 - Windows 10 or 11. Other systems may work with `pnpm dev`, but are not tested.
-- An NVIDIA GPU. Tested on an RTX 3090 with 24 GB.
+- An NVIDIA GPU. Tested on an RTX 3090 with 24 GB. Support for 16 GB cards is in the works.
 - [Node.js](https://nodejs.org/) 22 (22.18 or newer) or 24. Newer versions no longer ship corepack.
 - A recent [ComfyUI](https://github.com/comfyanonymous/ComfyUI), tested with 0.45. `start.bat` needs the portable build.
 - The model files in the ComfyUI `models` folders, see [Model files](#model-files). Brennglas checks them and lists what is missing.
@@ -239,6 +239,8 @@ To try an edit, open the living room, press Keep editing and add the blue vase a
 - **A light version.** Small and easy to host, without ComfyUI and without a strong GPU.
   All models would run through cloud APIs such as fal or Replicate, and you pay the provider per image.
   Would you use this? Please open an issue and tell me.
+- **16 GB graphics cards.** In the works: measured VRAM needs per model, and lighter model variants where 16 GB is not enough.
+- **A one click installer.** In the works: it sets up ComfyUI, Brennglas and the models you pick.
 - **Remote access**, for example over Tailscale, is not a feature yet. If you need it, open an issue.
 
 ## License
