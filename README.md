@@ -6,6 +6,8 @@ One user, one machine, no login.
 
 Brennglas is also an MCP server: Claude can direct whole clips for you, see [Claude as your director](#claude-as-your-director).
 
+**Jump to:** [Setup](#setup) · [Requirements](#requirements) · [Model files](#model-files) · [Start](#start) · [Claude as your director](#claude-as-your-director) · [Models and licenses](#models)
+
 ![Editing with reference images, before/after slider and edit chain](screenshots/edit.png)
 
 ## What it does
