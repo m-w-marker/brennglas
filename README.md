@@ -1,14 +1,24 @@
 # Brennglas
 
+**Ask Claude for a spot. Get a cut clip, rendered on your own GPU.**
+
+[![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
+
+*A 16 second spot for a made up ceramics brand. Claude planned three shots, made the start images with FLUX 3 Klein, animated them with LTX-2.5 and cut them with fades, logo and end card. Click for the MP4 with sound.*
+
 Brennglas is a local web app for open image and video models.
 ComfyUI renders everything on your own GPU.
 One user, one machine, no login.
-
-Brennglas is also an MCP server: Claude can direct whole clips for you, see [Claude as your director](#claude-as-your-director).
+It is also an MCP server, so Claude can direct whole clips for you, see [Claude as your director](#claude-as-your-director).
 
 **Jump to:** [Setup](#setup) · [Requirements](#requirements) · [Model files](#model-files) · [Start](#start) · [Claude as your director](#claude-as-your-director) · [Models and licenses](#models)
 
-![Editing with reference images, before/after slider and edit chain](screenshots/edit.png)
+<table>
+<tr>
+<td width="50%"><img src="screenshots/edit.png" alt="Edit with reference images"><br><b>Edit with reference images.</b> Before/after slider and an edit chain you can step back through.</td>
+<td width="50%"><img src="screenshots/video.png" alt="Image to video with camera preset"><br><b>Image to video with sound.</b> Camera presets and looks for LTX-2.5, every shot in the same gallery.</td>
+</tr>
+</table>
 
 ## What it does
 
@@ -22,7 +32,22 @@ Brennglas is also an MCP server: Claude can direct whole clips for you, see [Cla
 - Claude can drive Brennglas as a director over MCP: plan shots, render, check details, cut the clip.
 - Interface in English and German.
 
-![Image to video with camera preset and look](screenshots/video.png)
+The gallery starts with these eight sample images, all made with Brennglas. Remix any of them to see prompt and settings.
+
+<table>
+<tr>
+<td><img src="app/samples/living-room.jpg" width="200" alt="Japandi living room"></td>
+<td><img src="app/samples/blue-vase.jpg" width="200" alt="Blue fluted vase"></td>
+<td><img src="app/samples/suit.jpg" width="200" alt="Model in a charcoal suit"></td>
+<td><img src="app/samples/breakfast.jpg" width="200" alt="Breakfast on a terrace"></td>
+</tr>
+<tr>
+<td><img src="app/samples/golden-retriever.jpg" width="200" alt="Golden retriever on a sofa"></td>
+<td><img src="app/samples/ceramic-vases.jpg" width="200" alt="Ceramic vases"></td>
+<td><img src="app/samples/lounge-chair.jpg" width="200" alt="Leather lounge chair"></td>
+<td><img src="app/samples/camel-coat.jpg" width="200" alt="Portrait in a camel coat"></td>
+</tr>
+</table>
 
 ## Claude as your director
 
@@ -39,7 +64,9 @@ Every image and video shows up live in your gallery, so you can watch and step i
 
 Try something like this:
 
-> Make a 15 second spot for a ceramic vase brand. Three shots in a calm Japandi living room, golden hour light, soft piano music, our logo at the end.
+> Make a 15 second spot for our ceramics brand HALDE. Three shots of the blue vase in a calm Japandi living room, golden hour light, our logo in the corner and an end card.
+
+The clip at the top of this page came from a request like this one.
 
 The tools Claude gets:
 
