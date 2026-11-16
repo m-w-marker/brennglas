@@ -82,22 +82,32 @@ The server also hands Claude a short directing guide with the known limits of th
 ### Connect
 
 Brennglas must be running (`start.bat`), the MCP server talks to it.
-The MCP server needs Node.js in your `PATH`. If `install.bat` set up a portable copy for you, use the full path `<brennglas folder>\app\runtime\node\node.exe` as `command` instead of `node`.
 
-- **Claude Code:** open the Brennglas folder. The file `.mcp.json` registers the server. Confirm it once.
-- **Claude Desktop:** open Settings, Developer, Edit Config, add the block below and restart Claude Desktop.
-  Replace `<brennglas folder>` with the full path of your clone.
+**Claude Desktop app**
+
+1. At the end, `install.bat` prints a ready block with the right paths for your computer. Copy it.
+2. In Claude Desktop open Settings, Developer, **Edit Config**. This opens `claude_desktop_config.json`.
+3. Paste the block. If other servers are already listed under `mcpServers`, add only the `"brennglas": { ... }` entry, separated by a comma.
+4. Quit Claude Desktop completely, also from the tray icon next to the clock, and start it again.
+5. The Brennglas tools now show up under the tools icon in the chat box. Ask for an image or a spot. Claude asks once per tool before it uses it.
+
+Writing the block by hand? It looks like this. Replace `<brennglas folder>` with your path and write every backslash twice:
 
 ```json
 {
   "mcpServers": {
     "brennglas": {
-      "command": "node",
+      "command": "<brennglas folder>\\app\\runtime\\node\\node.exe",
       "args": ["<brennglas folder>\\app\\mcp\\src\\index.ts"]
     }
   }
 }
 ```
+
+`command` is the portable Node.js that `install.bat` set up. If you installed Node.js 22.18 or newer yourself, `"node"` works too.
+If the tools do not show up, Settings, Developer shows the server status and its log. Most often a path has single backslashes, or Brennglas is not running.
+
+**Claude Code:** open the Brennglas folder. The file `.mcp.json` registers the server. Confirm it once. It needs Node.js 22.18 or newer in your `PATH`.
 
 - **Other MCP clients** that start local (stdio) servers should work the same way, for example Codex CLI or LM Studio. They are not tested.
   The client must pass images from tool results to the model. Small local models handle single images well, whole clips less so.

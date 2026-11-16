@@ -194,12 +194,22 @@ async function models(comfy: string): Promise<void> {
   }
 }
 
+// Fertiger Block mit den echten Pfaden; process.execPath ist das Node, das gerade läuft (auch das portable).
+function claudeDesktopConfig(): void {
+  const block = { mcpServers: { brennglas: { command: process.execPath, args: [join(APP, 'mcp', 'src', 'index.ts')] } } };
+  console.log('\nTo use Brennglas in the Claude Desktop app: Settings, Developer, Edit Config, paste this block');
+  console.log('(if other servers are already listed, add only the "brennglas" entry), then quit Claude Desktop');
+  console.log('completely (also from the tray icon) and start it again:\n');
+  console.log(JSON.stringify(block, null, 2));
+}
+
 try {
   console.log('Brennglas installer. Run it again any time: it only adds what is missing.\n');
   const comfy = await ensureComfy();
   await ensureNodes(comfy);
   ensureDeps();
   await models(comfy);
+  claudeDesktopConfig();
   console.log('\nDone. Start Brennglas with start.bat.');
 } catch (e) {
   console.log(`\n${(e as Error).message}`);
