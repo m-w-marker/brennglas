@@ -105,7 +105,7 @@ The table is a short summary, not legal advice. Read the license yourself.
 
 ## Model files
 
-Download the files of the models you want and put each one into the named folder under `ComfyUI\models`.
+The easiest way is `install.bat`, see [Setup](#setup). To download by hand, put each file into the named folder under `ComfyUI\models`.
 A file that several models share is needed only once. The links point to the same files the official ComfyUI templates use.
 
 <!-- model-files:start -->
@@ -226,6 +226,10 @@ copy .env.example .env
 
 Open `app\.env`, remove the `#` in front of `COMFY_DIR` and set it to your portable ComfyUI folder (the one with `python_embeded`). Write the path without quotes.
 
+Then double click `install.bat` to get the models. It lists every model with its download size and license, asks which ones you want and puts the files into the right ComfyUI folders.
+Run it again any time to add more models. An interrupted download continues where it stopped.
+For the two gated models it opens the Hugging Face page and asks once for a read token.
+
 ## Start
 
 Double click `start.bat`. It starts ComfyUI, Brennglas and your browser.
@@ -242,7 +246,7 @@ To try an edit, open the living room, press Keep editing and add the blue vase a
   All models would run through cloud APIs such as fal or Replicate, and you pay the provider per image.
   Would you use this? Please open an issue and tell me.
 - **16 GB graphics cards.** In the works: measured VRAM needs per model, and lighter model variants where 16 GB is not enough.
-- **A one click installer.** In the works: it sets up ComfyUI, Brennglas and the models you pick.
+- **A one click installer.** The model part is done (`install.bat`). In the works: it also sets up Node.js, ComfyUI and Brennglas itself.
 - **Remote access**, for example over Tailscale, is not a feature yet. If you need it, open an issue.
 
 ## License
