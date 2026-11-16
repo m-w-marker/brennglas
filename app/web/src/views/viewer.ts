@@ -25,7 +25,7 @@ export function viewer(): Viewer {
   const tagAfter = h('span', { class: 'vtag right hidden' }, t('view.after'));
   const pct = h('span', { class: 'pct' });
   const src = h('span', { class: 'src' });
-  const box = h('div', { class: 'viewport empty' }, img, before, handle, tagBefore, tagAfter);
+  const box = h('div', { class: 'viewport empty', 'data-empty': t('view.empty') }, img, before, handle, tagBefore, tagAfter);
   const btn = (label: string, title: string, fn: () => void) =>
     h('button', { type: 'button', title, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
   const cmpBtn = btn(t('view.compare'), t('view.compareTitle'), () => setCompare(!compare));

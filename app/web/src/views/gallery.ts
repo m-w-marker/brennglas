@@ -8,6 +8,8 @@ export interface Gallery {
   load(): Promise<void>;
   onEvent(ev: SseEvent): void;
   select(id: string | null): void;
+  /** Nach SSE-Wiederverbindung: offene Kacheln und verpasste neue Einträge nachholen. */
+  resync(): void;
 }
 
 const FOLDER_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg>';
@@ -156,9 +158,17 @@ export function gallery(onPick: (g: Generation) => void, badges: Map<string, str
     }
   }
 
+  function resync() {
+    for (const g of items.values()) if (g.status === 'queued' || g.status === 'running') void refresh(g.id);
+    const token = loadToken;
+    void api.generations(null, filter, 20).then((p) => {
+      if (token === loadToken) for (const g of [...p.items].reverse()) if (!tiles.has(g.id)) upsert(g, true);
+    }).catch(() => {});
+  }
+
   const el = h('aside', { class: 'panel gallery' },
     h('h2', {}, t('gal.title'), count),
     h('div', { class: 'gal-tools' }, search, favBtn, folderBtn),
     grid, empty, more);
-  return { el, load: page, onEvent, select };
+  return { el, load: page, onEvent, select, resync };
 }

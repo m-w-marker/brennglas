@@ -12,8 +12,8 @@
     "url": "https://huggingface.co/krea/Krea-2-Turbo",
     "commercial": "limited",
     "summary": {
-      "de": "Kommerzielle Nutzung von Modell und Bildern nur bei unter 1 Mio. USD Jahresumsatz, darüber Enterprise-Lizenz. Beim Einsatz sind angemessene Inhaltsfilter Pflicht (Abschnitt 4.2).",
-      "en": "Commercial use of the model and its outputs only below USD 1M annual revenue, above that an enterprise license is required. Deployments must use reasonable content filters (section 4.2)."
+      "de": "Kommerzielle Nutzung von Modell und Bildern nur bei unter 1 Mio. USD Jahresumsatz, darüber Enterprise-Lizenz. Beim Einsatz sind Inhaltsfilter oder eine gleichwertige Prüfung Pflicht (Abschnitt 4.2).",
+      "en": "Commercial use of the model and its outputs only below USD 1M annual revenue, above that an enterprise license is required. Deployments must use content filters or an equivalent review (section 4.2)."
     }
   }
 }

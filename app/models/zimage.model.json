@@ -8,7 +8,7 @@
     "t2i": "zimage-t2i"
   },
   "license": {
-    "name": "Apache-2.0",
+    "name": "Apache License 2.0",
     "url": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo",
     "commercial": "yes",
     "summary": {

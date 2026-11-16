@@ -214,6 +214,7 @@ export class VideoJobs {
           queued = q.running.includes(pid) || q.pending.includes(pid);
         }
       } catch {
+        if (job.cancel) throw new Cancelled(); // sonst bliebe ein Abbruch bei totem ComfyUI ewig hängen
         continue; // ComfyUI kurz weg, weiter warten
       }
       if (entry) {

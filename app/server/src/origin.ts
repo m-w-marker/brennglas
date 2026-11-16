@@ -10,3 +10,16 @@ export function allowedWrite(method: string, origin: string | undefined, host: s
     return false; // auch Origin "null" aus Sandbox-iframes
   }
 }
+
+const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
+
+/** DNS-Rebinding-Sperre: eine fremde Domain, die auf 127.0.0.1 umgebogen wird, trägt ihren Namen im Host-Header. */
+export function allowedHost(host: string | undefined, bindHost: string): boolean {
+  if (!host) return false;
+  try {
+    const name = new URL(`http://${host}`).hostname;
+    return LOOPBACK.has(name) || name === bindHost.toLowerCase();
+  } catch {
+    return false;
+  }
+}

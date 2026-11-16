@@ -28,6 +28,8 @@ export interface ResultView {
   onEvent(ev: SseEvent): void;
   /** Knöpfe neu beschriften, z. B. nach einem Modellwechsel im Formular. */
   refreshActions(): void;
+  /** Nach SSE-Wiederverbindung: verpasstes Ende des verfolgten Jobs nachholen. */
+  resync(): void;
 }
 
 interface Callbacks {
@@ -121,6 +123,10 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
     actions.replaceChildren(cancel);
     chain.classList.add('hidden');
     // Ein schneller Job kann fertig sein, bevor follow() läuft – seine Meldungen gingen dann ins Leere
+    catchUp(id);
+  }
+
+  function catchUp(id: string) {
     void api.generation(id).then((g) => {
       const waiting = current === id && !progress.classList.contains('hidden');
       if (waiting && g.status !== 'queued' && g.status !== 'running') show(g);
@@ -286,5 +292,5 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
 
   const el = h('section', { class: 'panel result' },
     status, progress, hint, live, view.el, player, h('div', { class: 'footer' }, caption, meta, actions), chain);
-  return { el, current: () => current, follow, show, onEvent, refreshActions };
+  return { el, current: () => current, follow, show, onEvent, refreshActions, resync: () => { if (current) catchUp(current); } };
 }

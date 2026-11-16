@@ -98,10 +98,15 @@ try {
     queue.onEvent(ev);
     result.onEvent(ev);
     gal?.onEvent(ev);
+  }, () => {
+    syncHealth();
+    result.resync();
+    gal?.resync();
   });
-  void api.health()
+  const syncHealth = () => void api.health()
     .then((hl) => { setComfy(hl.comfy); queue.setCount(hl.queueRunning + hl.queuePending); })
     .catch(() => setComfy(false));
+  syncHealth();
   await gal.load();
   // Nach dem Neuladen gleich dem laufenden Job folgen, sonst fehlt der Abbrechen-Knopf
   const open = (await api.generations(null, {}, 20).catch(() => null))?.items.find((g) => g.status === 'queued' || g.status === 'running');

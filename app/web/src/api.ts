@@ -52,9 +52,11 @@ export const refUrl = (id: string, n: number) => `/api/images/${id}/ref/${n}`;
 /** Drag-Typ für Galerie-Bilder, Inhalt ist die Generation-ID. */
 export const GEN_DRAG = 'application/x-brennglas-generation';
 
-/** EventSource verbindet sich bei Abbruch selbst neu. */
-export function subscribe(onEvent: (ev: SseEvent) => void): EventSource {
+/** EventSource verbindet sich bei Abbruch selbst neu; was in der Lücke gesendet wurde, holt onReconnect nach. */
+export function subscribe(onEvent: (ev: SseEvent) => void, onReconnect: () => void = () => {}): EventSource {
   const es = new EventSource('/api/events');
+  let opened = false;
+  es.onopen = () => { if (opened) onReconnect(); opened = true; };
   es.onmessage = (m) => onEvent(JSON.parse(m.data as string) as SseEvent);
   return es;
 }

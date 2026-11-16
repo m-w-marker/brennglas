@@ -12,7 +12,8 @@ import { cropRegion, saveInput, saveOutput } from '../images.ts';
 import { BadRequest, type Jobs } from '../jobs.ts';
 import { missingFiles, type Model } from '../models.ts';
 import type { VideoJobs } from '../video.ts';
-import { allowedWrite } from '../origin.ts';
+import { allowedHost, allowedWrite } from '../origin.ts';
+import { config } from '../config.ts';
 
 interface Deps {
   db: DB;
@@ -48,6 +49,7 @@ function parseImages(raw: unknown): ImageSource[] | undefined {
 
 export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, models, listFolder, dataDir }: Deps): void {
   app.addHook('onRequest', async (req, reply) => {
+    if (!allowedHost(req.headers.host, config.host)) return reply.code(403).send({ error: 'Unbekannter Host abgelehnt' });
     if (!allowedWrite(req.method, req.headers.origin, req.headers.host)) {
       return reply.code(403).send({ error: 'Anfrage von fremder Seite abgelehnt' });
     }
@@ -145,7 +147,8 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
 
   app.post('/api/enhance', async (req, reply) => {
     try {
-      return { text: await jobs.enhance(req.body as GenerateRequest) };
+      const body = (req.body ?? {}) as GenerateRequest;
+      return { text: await jobs.enhance({ ...body, images: parseImages(body.images) }) };
     } catch (e) {
       return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
     }

@@ -24,7 +24,7 @@ Work like a director when asked for a film, spot or sequence:
    as a sharp overlay (logo) and an end card image (endcard). Never let the video model render logos or lettering; it smears.
 Known LTX limits and what helps:
 - Camera presets are text appended to the prompt, not a camera path. "Tracking shot" is a sideways move; for a subject walking
-  towards the camera use "Lead shot" or "Slow pull out" and say "full body in frame".
+  towards the camera use "Lead shot (subject walks towards camera)" or "Slow pull out" and say "full body in frame".
 - Whatever is outside the start image gets invented (extra people, props). Show the whole set in the start image.
 - Stage directions are suggestions ("turns to the camera" may become a turn away). When the end pose matters, generate the
   end image too and use first + last frame (ltx25-flf2v).

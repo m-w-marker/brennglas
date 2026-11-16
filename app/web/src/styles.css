@@ -201,7 +201,7 @@ label.check input:checked::after { transform: translateX(16px); background: var(
 }
 .viewport.dragging { cursor: grabbing; }
 .viewport.empty { cursor: default; display: flex; align-items: center; justify-content: center; }
-.viewport.empty::after { content: 'Kein Bild'; color: var(--faint); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+.viewport.empty::after { content: attr(data-empty); color: var(--faint); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 .vimg {
   position: absolute; top: 0; left: 0; max-width: none; transform-origin: 0 0; display: block;
   box-shadow: 0 16px 48px rgba(0, 0, 0, .55); pointer-events: none;

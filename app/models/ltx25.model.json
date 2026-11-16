@@ -10,8 +10,8 @@
     "flf2v": "ltx25-flf2v"
   },
   "license": {
-    "name": "LTX-2 Community License",
-    "url": "https://huggingface.co/Lightricks/LTX-2.5/blob/main/LICENSE",
+    "name": "LTX-2.x Community License",
+    "url": "https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x",
     "commercial": "limited",
     "summary": {
       "de": "Kostenlos, auch kommerziell, solange das Unternehmen unter 10 Mio. US-$ Jahresumsatz bleibt; darüber nur mit Lizenz von Lightricks.",

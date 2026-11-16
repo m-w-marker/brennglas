@@ -9,7 +9,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(BASE + path, init);
-  } catch {
+  } catch (e) {
+    // fetch gibt nach 5 min ohne Antwort auf (z. B. langer Schnitt) – das Backend läuft dann noch
+    if ((e as { cause?: { code?: string } }).cause?.code === 'UND_ERR_HEADERS_TIMEOUT') {
+      throw new Error(`No answer from the Brennglas backend on ${path} within 5 minutes; it may still finish, check gallery.`);
+    }
     throw new Error(`Brennglas backend not reachable at ${BASE} – start it with start.bat (or "pnpm dev" in app/).`);
   }
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
