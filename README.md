@@ -242,14 +242,19 @@ Log in, open the model page and accept the license once. Then their links work i
 ## Setup
 
 Run these lines in a Command Prompt (cmd), not in PowerShell.
+Clone into a folder on a drive with free space, not into your user folder: the gallery grows inside `app\data`.
 
 ```
 git clone https://github.com/m-w-marker/brennglas.git
 cd brennglas\app
+mkdir "%APPDATA%\npm"
 corepack enable --install-directory "%APPDATA%\npm" pnpm
 pnpm install
 copy .env.example .env
 ```
+
+The `mkdir` line is needed after a fresh Node.js install, the folder does not exist yet. If it already exists, cmd says so and you just go on.
+If `pnpm` is not found, open a new Command Prompt and continue with `pnpm install`.
 
 Open `app\.env`, remove the `#` in front of `COMFY_DIR` and set it to your portable ComfyUI folder (the one with `python_embeded`). Write the path without quotes.
 
