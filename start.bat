@@ -2,6 +2,14 @@
 rem Startet ComfyUI (falls nicht schon an), Backend und Web, dann den Browser. Pfad zu ComfyUI: COMFY_DIR in app\.env
 setlocal
 cd /d "%~dp0app"
+rem Portables Node von install.bat zuerst; corepack holt pnpm ohne globale Installation.
+if exist "runtime\node\node.exe" set "PATH=%~dp0app\runtime\node;%PATH%"
+set "COREPACK_ENABLE_DOWNLOAD_PROMPT=0"
+if not exist "node_modules" (
+  echo Brennglas ist noch nicht eingerichtet - bitte zuerst install.bat starten.
+  pause
+  exit /b 1
+)
 
 if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do if /i "%%a"=="COMFY_DIR" set "COMFY_DIR=%%b"
 
@@ -22,7 +30,7 @@ if not errorlevel 1 (
   echo Brennglas laeuft schon.
 ) else (
   echo Starte Brennglas ...
-  start "Brennglas" cmd /k pnpm dev
+  start "Brennglas" cmd /k corepack pnpm dev
 )
 
 rem Das Backend verbindet sich selbst, sobald ComfyUI oben ist - warten nur auf die Weboberflaeche.

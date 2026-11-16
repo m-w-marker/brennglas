@@ -82,6 +82,7 @@ The server also hands Claude a short directing guide with the known limits of th
 ### Connect
 
 Brennglas must be running (`start.bat`), the MCP server talks to it.
+The MCP server needs Node.js in your `PATH`. If `install.bat` set up a portable copy for you, use the full path `<brennglas folder>\app\runtime\node\node.exe` as `command` instead of `node`.
 
 - **Claude Code:** open the Brennglas folder. The file `.mcp.json` registers the server. Confirm it once.
 - **Claude Desktop:** open Settings, Developer, Edit Config, add the block below and restart Claude Desktop.
@@ -124,10 +125,8 @@ The table is a short summary, not legal advice. Read the license yourself.
 
 - Windows 10 or 11. Other systems may work with `pnpm dev`, but are not tested.
 - An NVIDIA GPU. Tested on an RTX 3090 with 24 GB. Support for 16 GB cards is in the works.
-- [Node.js](https://nodejs.org/) 22 (22.18 or newer) or 24. Newer versions no longer ship corepack.
-- A recent [ComfyUI](https://github.com/comfyanonymous/ComfyUI), tested with 0.45. `start.bat` needs the portable build.
-- The model files in the ComfyUI `models` folders, see [Model files](#model-files). Brennglas checks them and lists what is missing.
-- For upscaling render sequences: the custom nodes [VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) and [WAS Node Suite](https://github.com/WASasquatch/was-node-suite-comfyui).
+- About 10 GB of free space for ComfyUI, plus the models you pick (5 to 50 GB each).
+- `install.bat` sets up the rest: Node.js, the portable [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (tested with 0.45), the models and, if you want, the custom nodes [VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) and [WAS Node Suite](https://github.com/WASasquatch/was-node-suite-comfyui) for upscaling render sequences.
 - Optional: ffmpeg and ffprobe in your `PATH`. They cut clips, take the last frame of a video and write MP4 or ProRes from upscaled sequences.
 
 ## Model files
@@ -241,26 +240,33 @@ Log in, open the model page and accept the license once. Then their links work i
 
 ## Setup
 
-Run these lines in a Command Prompt (cmd), not in PowerShell.
-Clone into a folder on a drive with free space, not into your user folder: the gallery grows inside `app\data`.
+1. Get Brennglas: `git clone https://github.com/m-w-marker/brennglas.git`, or **Code → Download ZIP** on this page and unpack it.
+   Put it on a drive with free space, not into your user folder. The gallery grows inside `app\data`, and ComfyUI with its models goes next to it.
+2. Double click `install.bat`. It walks you through everything:
+   - gets a portable Node.js just for Brennglas, if yours is missing or too old (nothing is installed system wide),
+   - uses your portable ComfyUI or downloads it (about 2 GB), and offers an update if yours is older than 0.45,
+   - asks whether to add the two custom nodes for upscaling render sequences (needs Git),
+   - installs Brennglas itself,
+   - lists every model with download size and license and downloads the ones you pick.
+3. Double click `start.bat`.
+
+Run `install.bat` again any time to add models. Interrupted downloads continue where they stopped.
+For the two gated models it opens the Hugging Face page and asks once for a read token.
+
+<details><summary>Manual setup without install.bat</summary>
+
+Run these lines in a Command Prompt (cmd), not in PowerShell. You need Node.js 22.18 or newer.
 
 ```
-git clone https://github.com/m-w-marker/brennglas.git
 cd brennglas\app
-mkdir "%APPDATA%\npm"
-corepack enable --install-directory "%APPDATA%\npm" pnpm
-pnpm install
+corepack pnpm install
 copy .env.example .env
 ```
 
-The `mkdir` line is needed after a fresh Node.js install, the folder does not exist yet. If it already exists, cmd says so and you just go on.
-If `pnpm` is not found, open a new Command Prompt and continue with `pnpm install`.
-
 Open `app\.env`, remove the `#` in front of `COMFY_DIR` and set it to your portable ComfyUI folder (the one with `python_embeded`). Write the path without quotes.
+Then get the model files from [Model files](#model-files).
 
-Then double click `install.bat` to get the models. It lists every model with its download size and license, asks which ones you want and puts the files into the right ComfyUI folders.
-Run it again any time to add more models. An interrupted download continues where it stopped.
-For the two gated models it opens the Hugging Face page and asks once for a read token.
+</details>
 
 ## Start
 
