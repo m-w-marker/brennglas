@@ -1,4 +1,4 @@
-import type { GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { Figure, FigureRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 async function json<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -38,6 +38,10 @@ export const api = {
   enhance: (req: GenerateRequest) =>
     fetch('/api/enhance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) })
       .then((r) => json<{ text: string }>(r)),
+  figures: () => fetch('/api/figures').then((r) => json<Figure[]>(r)),
+  createFigure: (req: FigureRequest) =>
+    fetch('/api/figures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<Figure>(r)),
+  deleteFigure: (id: string) => fetch(`/api/figures/${id}`, { method: 'DELETE' }).then((r) => json<{ ok: true }>(r)),
   generate: (req: GenerateRequest) =>
     fetch('/api/generate', {
       method: 'POST',

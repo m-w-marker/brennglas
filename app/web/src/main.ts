@@ -3,6 +3,7 @@ import type { Generation, ModelInfo } from '@brennglas/shared';
 import { api, subscribe } from './api.ts';
 import { h } from './dom.ts';
 import { lang, setLang, t } from './i18n.ts';
+import { figures, type Figures } from './views/figures.ts';
 import { gallery, type Gallery } from './views/gallery.ts';
 import { inputPanel, type InputPanel } from './views/input-panel.ts';
 import { queuePanel } from './views/queue-panel.ts';
@@ -73,19 +74,22 @@ try {
   const videoWfs = new Set(workflows.filter((w) => w.kind === 'video').map((w) => w.name));
   let gal: Gallery | null = null;
   let input: InputPanel | null = null;
+  let figs: Figures | null = null;
   const result = resultView({
     onChange: (id) => gal?.select(id),
     onContinue: (g) => input?.continueFrom(g, 'edit'),
     onRemix: (g) => input?.remix(g),
     onUpscale: models.some((m) => m.modes.upscale) ? (g) => input?.continueFrom(g, 'upscale') : undefined,
     onReference: workflows.some((w) => w.refs > 0) ? (g) => input?.addReference(g) : undefined,
+    onFigure: models.some((m) => m.modes.edit && (workflows.find((w) => w.name === m.modes.edit)?.refs ?? 0) > 0) ? (g) => figs?.create(g) : undefined,
     onVideo: models.some((m) => m.modes.i2v) ? (g) => input?.continueFrom(g, 'i2v') : undefined,
     targetName: (g, md) => input?.targetName(g, md) ?? null,
     isVideo: (g) => videoWfs.has(g.workflow),
   });
   badgeMap = badges(models);
   showGeneration = (g) => result.show(g);
-  gal = gallery((g) => result.show(g), badgeMap);
+  figs = figures(workflows, models, (g) => result.show(g), (id) => result.follow(id), (list) => input?.setFigures(list), (id) => input?.useFigure(id));
+  gal = gallery((g) => result.show(g), badgeMap, figs);
   input = inputPanel(workflows, models, async (req, follow) => {
     const { id } = await api.generate(req);
     if (follow) result.follow(id);
@@ -98,7 +102,9 @@ try {
     queue.onEvent(ev);
     result.onEvent(ev);
     gal?.onEvent(ev);
+    figs?.onEvent(ev);
   }, () => {
+    void figs?.load();
     syncHealth();
     result.resync();
     gal?.resync();
@@ -107,7 +113,7 @@ try {
     .then((hl) => { setComfy(hl.comfy); queue.setCount(hl.queueRunning + hl.queuePending); })
     .catch(() => setComfy(false));
   syncHealth();
-  await gal.load();
+  await Promise.all([gal.load(), figs.load()]);
   // Nach dem Neuladen gleich dem laufenden Job folgen, sonst fehlt der Abbrechen-Knopf
   const open = (await api.generations(null, {}, 20).catch(() => null))?.items.find((g) => g.status === 'queued' || g.status === 'running');
   if (open && !result.current()) result.show(open);

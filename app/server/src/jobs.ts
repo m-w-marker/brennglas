@@ -5,10 +5,11 @@ import type { GenerateRequest, Health, ImageSource, MemoryStats, ParamValue, Que
 import type { ComfyClient, ComfyMessage } from './comfy/client.ts';
 import { addRefs, applyParams, dropInput, findNodeId, type Workflow } from './comfy/workflow.ts';
 import {
-  finishDone, finishError, getRow, insertGeneration, listUnfinished, refsOf, setComfyId, setStatus, toApi, type DB,
+  finishDone, finishError, getFigure, getRow, insertGeneration, listUnfinished, refsOf, setComfyId, setStatus, toApi, type DB,
 } from './db.ts';
 import { broadcast } from './events.ts';
-import { contentHash, inputPaths, refForComfy, saveOutput } from './images.ts';
+import { blankPng, scenePrompt } from './figures.ts';
+import { contentHash, inputPaths, refForComfy, saveInput, saveOutput } from './images.ts';
 
 export class BadRequest extends Error {}
 
@@ -67,7 +68,9 @@ export class Jobs {
       if (!prompt) throw new BadRequest('Prompt fehlt');
       params.prompt = prompt;
     }
-    const sources = req.images ?? [];
+    const scene = req.figures?.length ? this.scene(wf, req, prompt) : null;
+    if (scene) params.prompt = scene.prompt;
+    const sources = await this.materialize(scene?.images ?? req.images ?? []);
     if (imageKey && sources.length === 0) throw new BadRequest('Eingabebild fehlt – erst hochladen');
     const series = req.series;
     if (series && !(typeof series.id === 'string' && series.id.length <= 64 && Number.isInteger(series.index) && Number.isInteger(series.size)
@@ -91,14 +94,16 @@ export class Jobs {
     }
     const refNames: string[] = [];
     for (const r of refs) {
-      const ref = await refForComfy(join(this.dataDir, r.path));
+      const ref = await refForComfy(join(this.dataDir, r.path), wf.map.refs?.maxPixels);
       refNames.push(await this.comfy.uploadImage(ref, comfyName(ref)));
     }
     const applied = applyParams(wf, params);
     addRefs(applied.graph, wf.map, refNames);
     insertGeneration(this.db, {
-      id, workflow: req.workflow, prompt, params: applied.values,
-      parentId: input?.parentId ?? null, inputPath: input?.path ?? null, inputPreviewPath: input?.preview ?? null,
+      id, workflow: req.workflow, prompt, params: scene ? { ...applied.values, ...scene.params } : applied.values,
+      // Szene: Bild 1 ist nur die leere Fläche – kein Vorher-Bild, keine Kette
+      parentId: scene ? null : input?.parentId ?? null,
+      inputPath: scene ? null : input?.path ?? null, inputPreviewPath: scene ? null : input?.preview ?? null,
       refs: refs.map(({ path, preview }) => ({ path, preview })),
       series: series ? { id: series.id, index: series.index, size: series.size } : null,
     });
@@ -130,7 +135,7 @@ export class Jobs {
     if (!prompt) throw new BadRequest('Prompt fehlt');
     const params: Record<string, ParamValue> = { ...req.params, prompt };
     const image = Object.entries(wf.map.inputs).find(([, s]) => s.type === 'image');
-    const sources = req.images ?? [];
+    const sources = await this.materialize(req.images ?? []);
     if (sources.length > (image ? 1 : 0)) throw new BadRequest(`${req.workflow} nimmt höchstens ${image ? 1 : 0} Bild`);
     if (image && sources.length === 0 && !image[1].optional) throw new BadRequest('Eingabebild fehlt – erst hochladen');
     const src = sources[0] ? this.resolveSource(sources[0], true) : undefined;
@@ -165,7 +170,41 @@ export class Jobs {
     throw new Error('Keine Antwort von ComfyUI nach 10 Minuten');
   }
 
+  /** Figur in Szene: leere Fläche, je Figur Porträt (Referenz 1 des Blatt-Jobs) und Blatt, dann die Bilder der Leiste. */
+  private scene(wf: Workflow, req: GenerateRequest, text: string): { images: ImageSource[]; prompt: string; params: Record<string, ParamValue> } {
+    const token = wf.map.refs?.token;
+    const ids = req.figures ?? [];
+    if (!token || !('prompt' in wf.map.inputs)) throw new BadRequest(`${req.workflow} kann keine Figuren in Szenen setzen`);
+    if (ids.length > 3) throw new BadRequest('Höchstens 3 Figuren je Szene');
+    const aspect = req.aspect ?? 16 / 9;
+    const figs = ids.map((fid) => {
+      const f = getFigure(this.db, fid);
+      if (!f) throw new BadRequest('Figur nicht gefunden');
+      const st = getRow(this.db, f.sheetId)?.status;
+      if (st === 'error' || st === 'cancelled') throw new BadRequest(`Das Blatt von „${f.name}“ ist gescheitert – Figur löschen und neu anlegen`);
+      if (st !== 'done') throw new BadRequest(`Das Blatt von „${f.name}“ ist noch nicht fertig`);
+      return f;
+    });
+    const extra = req.images ?? [];
+    return {
+      images: [{ kind: 'blank', aspect }, ...figs.flatMap((f): ImageSource[] => [{ kind: 'input', id: f.sheetId, index: 1 }, { kind: 'output', id: f.sheetId }]), ...extra],
+      prompt: scenePrompt(figs, token, extra.length, text),
+      params: { figures: ids.join(','), aspect },
+    };
+  }
+
+  /** Leere Flächen werden zu Uploads; gleiche Fläche = gleicher Inhalt = eine Datei. */
+  private async materialize(sources: ImageSource[]): Promise<ImageSource[]> {
+    // grenze: Fläche wird vor den übrigen Prüfungen geschrieben, bei Ablehnung bleibt sie liegen (wenige KB, Dedup); aufräumen, falls inputs/ wächst
+    return Promise.all(sources.map(async (s): Promise<ImageSource> => {
+      if (s.kind !== 'blank') return s;
+      if (!Number.isFinite(s.aspect) || s.aspect < 0.25 || s.aspect > 4) throw new BadRequest('Seitenverhältnis der leeren Fläche muss zwischen 0,25 und 4 liegen');
+      return { kind: 'upload', id: (await saveInput(this.dataDir, await blankPng(s.aspect))).inputId };
+    }));
+  }
+
   private resolveSource(s: ImageSource, main: boolean): { path: string; preview: string; parentId: string | null } {
+    if (s.kind === 'blank') throw new BadRequest('Leere Fläche nicht aufbereitet');
     if (s.kind === 'output') {
       const parent = getRow(this.db, s.id);
       if (!parent || parent.status !== 'done' || !parent.output_path || !parent.preview_path) {

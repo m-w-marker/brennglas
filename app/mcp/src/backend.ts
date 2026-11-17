@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { extname } from 'node:path';
-import type { FieldSpec, GenerateRequest, Generation, ImageSource, ModelInfo, Page, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { FieldSpec, Figure, FigureRequest, GenerateRequest, Generation, ImageSource, ModelInfo, Page, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Spricht nur mit dem eigenen Backend, nie direkt mit ComfyUI. */
 export const BASE = (process.env.BRENNGLAS_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
@@ -30,6 +30,9 @@ export const backend = {
   lastFrame: (id: string) => call<UploadResult>(`/api/generations/${encodeURIComponent(id)}/last-frame`, { method: 'POST' }),
   concat: (body: { ids: string[]; fade: number } & Record<string, unknown>) => call<Generation>('/api/concat', json(body)),
   enhance: (req: GenerateRequest) => call<{ text: string }>('/api/enhance', json(req)),
+  figures: () => call<Figure[]>('/api/figures'),
+  createFigure: (req: FigureRequest) => call<Figure>('/api/figures', json(req)),
+  deleteFigure: (id: string) => call<{ ok: true }>(`/api/figures/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generation: (id: string) => call<Generation>(`/api/generations/${encodeURIComponent(id)}`),
   gallery: (limit: number, q?: string) => call<Page<Generation>>(`/api/generations?${new URLSearchParams({ limit: String(limit), ...(q ? { q } : {}) })}`),
   async crop(id: string, r: { x: number; y: number; w: number; h: number }): Promise<string> {

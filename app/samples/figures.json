@@ -1,0 +1,65 @@
+{
+  "figures": [
+    {
+      "name": "Mara",
+      "kind": "person",
+      "workflow": "flux3-edit",
+      "portrait": "figure-mara.jpg",
+      "sheet": "figure-mara-sheet.jpg",
+      "sheetPrompt": "Turn <ref_image_0> into a clean character reference sheet of the person from <ref_image_1>, on a plain light grey studio background, even soft lighting, no text, no labels. Four views side by side, same scale: (1) front close-up portrait of the face, (2) three-quarter view head and shoulders, (3) side profile head and shoulders, (4) full body standing front view. Exactly the same person as in <ref_image_1>: same face, hair, eye colour, skin details such as freckles, accessories and clothing. In the full body view the person wears dark blue straight jeans and white sneakers."
+    },
+    {
+      "name": "Field backpack",
+      "kind": "product",
+      "workflow": "flux3-edit",
+      "portrait": "figure-backpack.jpg",
+      "sheet": "figure-backpack-sheet.jpg",
+      "sheetPrompt": "Turn <ref_image_0> into a clean product reference sheet of the product from <ref_image_1>, on a plain light grey studio background, even soft lighting, no text, no labels. Four views side by side, same scale: (1) front view, (2) side view, (3) back view, (4) close-up of its most characteristic detail. Exactly the same product as in <ref_image_1>: same shape, proportions, colours, materials, logo and markings. Details not visible in <ref_image_1>: the back view shows two padded cognac leather shoulder straps and a flat back panel."
+    }
+  ],
+  "scenes": [
+    {
+      "file": "figure-backpack-platform.jpg",
+      "workflow": "flux3-edit",
+      "figures": [
+        "Field backpack"
+      ],
+      "aspect": 1.7778,
+      "prompt": "The Field backpack stands on a weathered wooden bench on a quiet railway platform in the morning, soft low sunlight, shallow depth of field, lifestyle product photography.",
+      "params": {
+        "megapixels": 2,
+        "seed": 6301,
+        "enhance": false
+      }
+    },
+    {
+      "file": "figure-mara-cafe.jpg",
+      "workflow": "flux3-edit",
+      "figures": [
+        "Mara"
+      ],
+      "aspect": 1.5,
+      "prompt": "Mara sits at a window table in a busy café, turned three-quarter towards the window, laughing, holding a white coffee cup with both hands, medium shot from the waist up, warm afternoon light, shallow depth of field, candid photo.",
+      "params": {
+        "megapixels": 2,
+        "seed": 5101,
+        "enhance": false
+      }
+    },
+    {
+      "file": "figure-mara-backpack.jpg",
+      "workflow": "flux3-edit",
+      "figures": [
+        "Mara",
+        "Field backpack"
+      ],
+      "aspect": 0.75,
+      "prompt": "Mara walks along a sunny autumn city street, wearing the Field backpack on both shoulders, seen from a three-quarter front angle, smiling, full body in frame, golden light, candid street photography.",
+      "params": {
+        "megapixels": 2,
+        "seed": 6302,
+        "enhance": false
+      }
+    }
+  ]
+}

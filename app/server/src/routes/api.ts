@@ -3,10 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
-import type { GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { FigureKind, FigureRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
 import { concatClips, frameAt } from '../clips.ts';
-import { deleteGeneration, finishDone, getChain, getRow, insertGeneration, listGenerations, refsOf, setFavorite, toApi, type DB } from '../db.ts';
+import {
+  deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
+  refsOf, setFavorite, toApi, type DB,
+} from '../db.ts';
+import { sheetPrompt } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
 import { cropRegion, saveInput, saveOutput } from '../images.ts';
 import { BadRequest, type Jobs } from '../jobs.ts';
@@ -39,7 +43,8 @@ function parseImages(raw: unknown): ImageSource[] | undefined {
   if (raw === undefined) return undefined;
   if (!Array.isArray(raw)) throw new BadRequest('images muss eine Liste sein');
   return raw.map((x: unknown) => {
-    const s = x as { kind?: unknown; id?: unknown; index?: unknown } | null;
+    const s = x as { kind?: unknown; id?: unknown; index?: unknown; aspect?: unknown } | null;
+    if (s?.kind === 'blank' && typeof s.aspect === 'number') return { kind: 'blank', aspect: s.aspect };
     if (typeof s?.id !== 'string') throw new BadRequest('Bildquelle ohne id');
     if (s.kind === 'upload' || s.kind === 'output') return { kind: s.kind, id: s.id };
     if (s.kind === 'input' && typeof s.index === 'number' && Number.isInteger(s.index) && s.index >= 0) return { kind: 'input', id: s.id, index: s.index };
@@ -89,12 +94,54 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     }
     const params = body.params && typeof body.params === 'object' ? body.params : {};
     try {
-      if (video && body.workflow === video.name) return { id: video.create(params) };
-      const id = await jobs.create({ workflow: body.workflow, prompt: body.prompt, params, images: parseImages(body.images), series: body.series });
+      if (video && body.workflow === video.name) {
+        if (body.figures?.length) return reply.code(400).send({ error: 'Video-Upscale kann keine Figuren in Szenen setzen' });
+        return { id: video.create(params) };
+      }
+      const figures = Array.isArray(body.figures) ? body.figures.filter((x): x is string => typeof x === 'string') : undefined;
+      const aspect = typeof body.aspect === 'number' ? body.aspect : undefined;
+      const id = await jobs.create({
+        workflow: body.workflow, prompt: body.prompt, params, images: parseImages(body.images), series: body.series, figures, aspect,
+      });
       return { id };
     } catch (e) {
       return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
     }
+  });
+
+  app.get('/api/figures', async () => listFigures(db));
+
+  // Figur anlegen = Blatt-Job starten: leere 16:9-Fläche als Bild 1, Porträt als Bild 2 → plan_referenz
+  app.post('/api/figures', async (req, reply) => {
+    const body = (req.body ?? {}) as Partial<FigureRequest>;
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const kind: FigureKind | null = body.kind === 'person' || body.kind === 'product' ? body.kind : null;
+    const outfit = typeof body.outfit === 'string' ? body.outfit.trim().slice(0, 200) : '';
+    const map = typeof body.workflow === 'string' ? workflows.get(body.workflow)?.map : undefined;
+    if (!name || name.length > 60) return reply.code(400).send({ error: 'Name fehlt oder ist länger als 60 Zeichen' });
+    // Claude wählt Figuren per Name, darum eindeutig
+    if (listFigures(db).some((f) => f.name.toLowerCase() === name.toLowerCase())) return reply.code(400).send({ error: `Eine Figur „${name}“ gibt es schon` });
+    if (!kind) return reply.code(400).send({ error: 'kind: person oder product' });
+    if (!map || !('prompt' in map.inputs) || !map.refs?.token || map.refs.max < 1) {
+      return reply.code(400).send({ error: 'workflow muss ein Bearbeiten-Workflow mit Referenzbildern sein' });
+    }
+    try {
+      const [portrait] = parseImages([body.portrait]) ?? [];
+      if (!portrait || portrait.kind === 'blank') throw new BadRequest('Porträt fehlt');
+      const sheetId = await jobs.create({
+        workflow: map.name, prompt: sheetPrompt(kind, map.refs.token, outfit), params: {}, images: [{ kind: 'blank', aspect: 16 / 9 }, portrait],
+      });
+      const id = randomUUID();
+      insertFigure(db, { id, name, kind, sheetId });
+      return listFigures(db).find((f) => f.id === id);
+    } catch (e) {
+      return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
+    }
+  });
+
+  app.delete('/api/figures/:id', async (req, reply) => {
+    if (!deleteFigure(db, (req.params as { id: string }).id)) return reply.code(404).send({ error: 'Nicht gefunden' });
+    return { ok: true };
   });
 
   app.get('/api/generations', async (req) => {
@@ -114,6 +161,8 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     const row = getRow(db, id);
     if (!row) return reply.code(404).send({ error: 'Nicht gefunden' });
     if (row.status === 'queued' || row.status === 'running') return reply.code(400).send({ error: 'Läuft noch – erst abbrechen' });
+    const figure = figureUsing(db, id);
+    if (figure) return reply.code(400).send({ error: `Referenzblatt der Figur „${figure}“ – erst die Figur löschen` });
     // Erst die DB, dann die Dateien: bricht das Löschen ab, bleibt höchstens eine verwaiste Datei, nie ein Eintrag ohne Bild
     for (const rel of deleteGeneration(db, id) ?? []) {
       try {

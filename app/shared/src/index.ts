@@ -48,6 +48,8 @@ export interface RefSpec {
   min?: number;
   /** Schreibweise im Prompt: {n} = Bildnummer ab 1 (<Picture {n}>, <image{n}>), {i} = ab 0 (<ref_image_{i}>); leer = nicht im Prompt. */
   token: string;
+  /** Referenzen vor dem Hochladen auf höchstens so viele Pixel verkleinern (Qwen kodiert sie sonst in voller Größe). */
+  maxPixels?: number;
   /** Je Ziel-Node: Feld = prefix + (start + i), z. B. images.image_2 – oder ein festes Feld bei max 1. */
   targets: ({ node: string; prefix: string; start: number } | { node: string; field: string })[];
 }
@@ -164,13 +166,43 @@ export interface GenerateRequest {
   /** Bild 1 wird bearbeitet, weitere sind Referenzen (im Prompt per RefSpec.token, z. B. <Picture n>). */
   images?: ImageSource[];
   series?: SeriesRef;
+  /** Figuren-IDs: neue Szene auf leerer Fläche, je Figur Porträt + Blatt als Referenz; images kommen danach. → plan_referenz */
+  figures?: string[];
+  /** Seitenverhältnis der Szene (Breite/Höhe), nur mit figures; Standard 16:9. */
+  aspect?: number;
 }
 
-/** upload: POST /api/upload · output: Ergebnis eines Jobs (Kette) · input: Eingabebild n eines Jobs, 0 = Hauptbild. */
+/** upload: POST /api/upload · output: Ergebnis eines Jobs (Kette) · input: Eingabebild n eines Jobs, 0 = Hauptbild ·
+ *  blank: leere graue Fläche im Seitenverhältnis Breite/Höhe, als Bild 1 einer neuen Szene aus Referenzen. */
 export type ImageSource =
   | { kind: 'upload'; id: string }
   | { kind: 'output'; id: string }
-  | { kind: 'input'; id: string; index: number };
+  | { kind: 'input'; id: string; index: number }
+  | { kind: 'blank'; aspect: number };
+
+export type FigureKind = 'person' | 'product';
+
+/** Gleichbleibende Figur oder gleichbleibendes Produkt: das Porträt ist Referenz 1 des Blatt-Jobs. → plan_referenz */
+export interface Figure {
+  id: string;
+  name: string;
+  kind: FigureKind;
+  sheetId: string;
+  /** Der Blatt-Job; fehlt, wenn er aus der Datenbank verschwunden ist. */
+  sheet: Generation | null;
+  createdAt: string;
+}
+
+export interface FigureRequest {
+  name: string;
+  kind: FigureKind;
+  /** Porträt bzw. Packshot. */
+  portrait: ImageSource;
+  /** Edit-Workflow, der das Blatt rechnet. */
+  workflow: string;
+  /** Person: Kleidung für die Ganzkörper-Ansicht · Produkt: Details, die das Foto nicht zeigt (z. B. die Rückseite). */
+  outfit?: string;
+}
 
 export interface GenerationFilter {
   q?: string;

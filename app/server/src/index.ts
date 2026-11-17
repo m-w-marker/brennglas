@@ -8,7 +8,7 @@ import { adoptLegacyDb, openDb } from './db.ts';
 import { Jobs } from './jobs.ts';
 import { loadModels } from './models.ts';
 import { registerApi } from './routes/api.ts';
-import { seedSamples } from './samples.ts';
+import { seedFigures, seedSamples } from './samples.ts';
 import { VideoJobs } from './video.ts';
 
 const workflows = new Map<string, Workflow>();
@@ -30,6 +30,12 @@ if (firstStart) {
   } catch (e) {
     console.warn(`Beispielbilder übersprungen: ${(e as Error).message}`);
   }
+}
+try {
+  const n = await seedFigures(db, config.dataDir, config.samplesDir);
+  if (n) console.log(`${n} Beispiel-Figuren angelegt`);
+} catch (e) {
+  console.warn(`Beispiel-Figuren übersprungen: ${(e as Error).message}`);
 }
 const comfy = new ComfyClient(config.comfyUrl);
 const jobs = new Jobs(db, comfy, workflows, config.dataDir);

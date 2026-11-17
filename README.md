@@ -2,9 +2,9 @@
 
 **Ask Claude for a spot. Get a cut clip, rendered on your own GPU.**
 
-[![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
+[![A day with Mara: the same woman in five shots, directed by Claude over MCP](screenshots/mara.webp)](screenshots/mara.mp4)
 
-*A 16 second spot for a made up ceramics brand. Claude planned three shots, made the start images with FLUX 3 Klein, animated them with LTX-2.5 and cut them with fades, logo and end card. Click for the MP4 with sound.*
+*A day with Mara, 23 seconds, the same woman in five shots. Claude put the saved character into five new scenes with FLUX 3 Klein, checked faces and hands, animated the shots with LTX-2.5 and cut them with fades. No training, no face swap. Click for the MP4 with sound.*
 
 Brennglas is a local web app for open image and video models.
 ComfyUI renders everything on your own GPU.
@@ -23,6 +23,7 @@ It is also an MCP server, so Claude can direct whole clips for you, see [Claude 
 ## What it does
 
 - Text to image and image editing with up to 16 input images.
+- Consistent characters and products: save a person or product once (portrait and a reference sheet with four views), then put up to three of them into any new scene.
 - Text to video, image to video, and first plus last frame video, with sound.
 - Camera presets and looks for video, and real camera paths with Wan Fun Camera.
 - Upscaling of images to 8K and of render sequences to UHD 4K.
@@ -66,13 +67,18 @@ Try something like this:
 
 > Make a 15 second spot for our ceramics brand HALDE. Three shots of the blue vase in a calm Japandi living room, golden hour light, our logo in the corner and an end card.
 
-The clip at the top of this page came from a request like this one.
+This 16 second spot came from a request like this one: three shots, fades, logo and end card.
+
+[![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
+
+When the same person or product appears in several shots, Claude saves it as a character first and renders every start image from it, so the face stays the same. The clip at the top of this page was made that way.
 
 The tools Claude gets:
 
 - `generate` starts an image or video job with any model and option.
 - `wait` waits for a job and returns a preview.
 - `inspect_image` shows a region of a result at full resolution.
+- `figures` and `create_figure` list and save characters and products; `generate` puts them into new scenes.
 - `last_frame` takes the last frame of a video as the start of the next shot.
 - `concat` cuts shots into one clip with cuts or fades, music, logo and end card.
 - `list_models`, `gallery` and `enhance_prompt` read the models, browse results and write prompts.
@@ -262,6 +268,9 @@ Log in, open the model page and accept the license once. Then their links work i
 
 Run `install.bat` again any time to add models. Interrupted downloads continue where they stopped.
 For the two gated models it opens the Hugging Face page and asks once for a read token.
+
+**Updating:** run `git pull` in the Brennglas folder (or unpack the new ZIP over the old folder), then run `install.bat` once.
+Your gallery, characters and settings in `app\data` and `app\.env` stay. The database is upgraded on the first start and backed up before.
 
 <details><summary>Manual setup without install.bat</summary>
 

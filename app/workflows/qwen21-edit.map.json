@@ -80,6 +80,7 @@
   "refs": {
     "max": 9,
     "token": "<image{n}>",
+    "maxPixels": 1048576,
     "targets": [
       {
         "node": "IN_REFS",

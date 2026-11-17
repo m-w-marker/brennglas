@@ -14,7 +14,7 @@ export interface Gallery {
 
 const FOLDER_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg>';
 
-export function gallery(onPick: (g: Generation) => void, badges: Map<string, string>): Gallery {
+export function gallery(onPick: (g: Generation) => void, badges: Map<string, string>, figs: { el: HTMLElement; count: HTMLElement } | null = null): Gallery {
   const items = new Map<string, Generation>();
   const tiles = new Map<string, HTMLElement>();
   let cursor: number | null = null;
@@ -166,9 +166,21 @@ export function gallery(onPick: (g: Generation) => void, badges: Map<string, str
     }).catch(() => {});
   }
 
+  // Reiter „Bilder | Figuren“; ohne Figuren-Ansicht bleibt die schlichte Überschrift
+  const images = h('div', { class: 'gal-images' }, h('div', { class: 'gal-tools' }, search, favBtn, folderBtn), grid, empty, more);
+  const tabImages = h('button', { type: 'button', class: 'gal-tab on' }, t('gal.title'), count);
+  const tabFigs = figs ? h('button', { type: 'button', class: 'gal-tab' }, t('fig.title'), figs.count) : null;
+  const show = (f: boolean) => {
+    images.classList.toggle('hidden', f);
+    figs?.el.classList.toggle('hidden', !f);
+    tabImages.classList.toggle('on', !f);
+    tabFigs?.classList.toggle('on', f);
+  };
+  tabImages.addEventListener('click', () => show(false));
+  tabFigs?.addEventListener('click', () => show(true));
+  figs?.el.classList.add('hidden');
   const el = h('aside', { class: 'panel gallery' },
-    h('h2', {}, t('gal.title'), count),
-    h('div', { class: 'gal-tools' }, search, favBtn, folderBtn),
-    grid, empty, more);
+    figs ? h('div', { class: 'gal-tabs' }, tabImages, tabFigs) : h('h2', {}, t('gal.title'), count),
+    images, figs?.el);
   return { el, load: page, onEvent, select, resync };
 }

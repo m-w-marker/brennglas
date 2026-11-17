@@ -1,4 +1,4 @@
-import type { FieldSpec, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
+import type { FieldSpec, Figure, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, refUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
@@ -28,12 +28,22 @@ interface ImageField {
   drain(): Item[];
 }
 
+/** Figuren für eine neue Szene: leere Fläche im Format, je Figur Porträt + Blatt als Referenz. → plan_referenz */
+interface FigurePicker {
+  el: HTMLElement;
+  get(): string[];
+  aspect(): number;
+  set(ids: string[], aspect?: number): void;
+  update(list: Figure[]): void;
+}
+
 interface WorkflowForm {
   wf: WorkflowInfo;
   section: HTMLElement;
   prompt: HTMLTextAreaElement | null;
   fields: Map<string, Field>;
   image: { key: string; field: ImageField } | null;
+  figures: FigurePicker | null;
 }
 
 export interface InputPanel {
@@ -46,6 +56,10 @@ export interface InputPanel {
   addReference(g: Generation): void;
   /** Kurzname des Zielmodells; g = null wie bei addReference (ohne Herkunft). */
   targetName(g: Generation | null, mode: Mode): string | null;
+  /** Figurenliste hat sich geändert (angelegt, Blatt fertig, gelöscht). */
+  setFigures(list: Figure[]): void;
+  /** In den Bearbeiten-Modus und diese Figur für die nächste Szene wählen. */
+  useFigure(id: string): void;
 }
 
 const lbl = (spec: FieldSpec, key: string) => h('span', { class: 'lbl' }, tx(spec.label) ?? key);
@@ -148,6 +162,57 @@ function boolField(key: string, spec: FieldSpec): Field {
 }
 
 const refToken = (token: string, n: number) => token.replace('{n}', String(n)).replace('{i}', String(n - 1));
+
+const ASPECTS: [string, number][] = [['16:9', 16 / 9], ['9:16', 9 / 16], ['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['3:2', 3 / 2], ['2:3', 2 / 3], ['21:9', 21 / 9]];
+
+function figurePicker(token: string): FigurePicker {
+  let list: Figure[] = [];
+  let chosen: string[] = [];
+  // Nur die gewählten als Chips, der Rest im Dropdown – bleibt kurz, auch bei vielen Figuren
+  const chips = h('div', { class: 'fig-chips' });
+  const add = h('select', { class: 'fig-add-select' });
+  add.addEventListener('change', () => {
+    if (add.value) chosen = [...chosen, add.value];
+    render();
+  });
+  const aspect = h('select', { class: 'fig-aspect' }, ...ASPECTS.map(([l, v]) => h('option', { value: String(v) }, l)));
+  const hint = h('small', { class: 'opt-hint' });
+  const row = h('div', { class: 'row hidden' }, h('span', { class: 'lbl' }, t('scene.format')), aspect);
+  const el = h('div', { class: 'field hidden' }, h('span', { class: 'lbl' }, t('scene.figures')), h('div', { class: 'fig-pick' }, chips, add), row, hint);
+
+  function render() {
+    const ready = list.filter((f) => f.sheet?.status === 'done');
+    chosen = chosen.filter((id) => ready.some((f) => f.id === id)).slice(0, 3);
+    chips.replaceChildren(...chosen.map((id) => {
+      const f = ready.find((x) => x.id === id);
+      return h('span', { class: 'fig-chip' }, f?.name ?? id,
+        h('button', { type: 'button', title: t('drop.remove'), onclick: () => { chosen = chosen.filter((x) => x !== id); render(); } }, '×'));
+    }));
+    const rest = ready.filter((f) => !chosen.includes(f.id));
+    add.replaceChildren(h('option', { value: '' }, t(chosen.length ? 'scene.addMore' : 'scene.add')), ...rest.map((f) => h('option', { value: f.id }, f.name)));
+    add.value = '';
+    add.classList.toggle('hidden', chosen.length >= 3 || rest.length === 0);
+    el.classList.toggle('hidden', ready.length === 0);
+    row.classList.toggle('hidden', chosen.length === 0);
+    const names = chosen.map((id) => list.find((f) => f.id === id)?.name).join(', ');
+    hint.textContent = chosen.length ? t('scene.hint', { names, next: refToken(token, 2 + 2 * chosen.length) }) : t('scene.pick');
+  }
+  render();
+  return {
+    el,
+    get: () => [...chosen],
+    aspect: () => Number(aspect.value),
+    set: (ids, a) => {
+      chosen = ids;
+      if (a !== undefined) {
+        const near = ASPECTS.reduce((b, x) => (Math.abs(x[1] - a) < Math.abs(b[1] - a) ? x : b));
+        aspect.value = String(near[1]);
+      }
+      render();
+    },
+    update: (l) => { list = l; render(); },
+  };
+}
 
 /** Bildleiste: Bild 1 wird bearbeitet, weitere sind Referenzen; bei max 1 ein einzelnes Feld. */
 function imageBar(key: string, spec: FieldSpec, max: number, token: string, onError: (msg: string) => void): ImageField {
@@ -260,9 +325,10 @@ function remember(id: string): void {
   }
 }
 
-function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) => void): WorkflowForm | null {
+function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) => void, sceneable: boolean): WorkflowForm | null {
   const fields = new Map<string, Field>();
   let image: WorkflowForm['image'] = null;
+  const figures = sceneable && wf.refToken && wf.refs >= 2 ? figurePicker(wf.refToken) : null;
   let prompt: HTMLTextAreaElement | null = null;
   const section = h('div', { class: 'section hidden' });
   const advanced = h('div', { class: 'adv-body' });
@@ -279,6 +345,7 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
     if (spec.type === 'image') {
       const field = imageBar(key, spec, 1 + wf.refs, wf.refToken ?? '', setError);
       image = { key, field };
+      if (figures) section.append(figures.el);
       section.append(field.el);
       continue;
     }
@@ -295,7 +362,7 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
   if (advanced.childElementCount > 0) {
     section.append(h('details', { class: 'adv' }, h('summary', {}, t('form.advanced')), advanced));
   }
-  return prompt || image || wf.kind === 'video' ? { wf, section, prompt, fields, image } : null;
+  return prompt || image || wf.kind === 'video' ? { wf, section, prompt, fields, image, figures } : null;
 }
 
 /** Modus-Tabs, darunter die Modelle dieses Modus; das Formular entsteht aus der *.map.json. */
@@ -328,8 +395,9 @@ export function inputPanel(
     }
   });
   const forms = new Map<string, WorkflowForm>();
+  const editFlows = new Set(models.map((m) => m.modes.edit));
   for (const wf of workflows) {
-    const f = buildForm(wf, () => void send(), setError);
+    const f = buildForm(wf, () => void send(), setError, editFlows.has(wf.name));
     if (!f) continue;
     forms.set(wf.name, f);
     sections.append(f.section);
@@ -364,6 +432,7 @@ export function inputPanel(
     if (!next || !f) return;
     // Beim Modellwechsel im selben Modus Prompt und Bildleiste mitnehmen
     if (next === mode && active?.prompt && f.prompt && f !== active && !f.prompt.value.trim()) f.prompt.value = active.prompt.value;
+    if (next === mode && f !== active && active?.figures && f.figures) f.figures.set(active.figures.get(), active.figures.aspect());
     let cut = 0;
     if (next === mode && f !== active && active?.image && f.image) {
       const moving = active.image.field.drain();
@@ -434,7 +503,12 @@ export function inputPanel(
       if (f.prompt) req.prompt = text;
       if (f.image) {
         const items = f.image.field.get();
-        if (items.length === 0 && !f.wf.inputs[f.image.key]?.optional) throw new Error(t('form.needImage'));
+        const figs = f.figures?.get() ?? [];
+        if (items.length === 0 && !figs.length && !f.wf.inputs[f.image.key]?.optional) throw new Error(t('form.needImage'));
+        if (figs.length && f.figures) {
+          req.figures = figs;
+          req.aspect = f.figures.aspect();
+        }
         req.images = [];
         // Hochgeladenes merken, damit ein zweites Absenden nicht erneut hochlädt
         for (const it of items) {
@@ -483,6 +557,7 @@ export function inputPanel(
     switchTo(md, g);
     const f = active;
     if (mode !== md || !f?.image) return;
+    f.figures?.set([]);
     // Neu ansetzen: Referenzen des letzten Schritts gehören nicht automatisch zum nächsten
     f.image.field.set([{ src: { kind: 'output', id: g.id }, url: imageUrl(g.id, 'thumb'), name: t('src.result', { w: g.width ?? 0, h: g.height ?? 0 }) }]);
     if (f.prompt) {
@@ -500,6 +575,10 @@ export function inputPanel(
     if (!f) return;
     if (f.prompt) f.prompt.value = g.prompt;
     for (const [key, field] of f.fields) field.set(g.params[key]);
+    // Szene aus Figuren: Auswahl und Format zurück, die Leiste trug nur Zusatzbilder
+    const figs = typeof g.params.figures === 'string' ? g.params.figures.split(',').filter(Boolean) : [];
+    f.figures?.set(figs, typeof g.params.aspect === 'number' ? g.params.aspect : undefined);
+    if (figs.length) f.image?.field.set([]);
     if (f.image && g.hasInput) {
       const main: Item = g.parentId
         ? { src: { kind: 'output', id: g.parentId }, url: imageUrl(g.parentId, 'thumb'), name: t('src.chain') }
@@ -518,10 +597,22 @@ export function inputPanel(
     active.image.field.add({ src: { kind: 'output', id: g.id }, url: imageUrl(g.id, 'thumb'), name: t('src.gallery') });
   }
 
+  function setFigures(list: Figure[]) {
+    for (const f of forms.values()) f.figures?.update(list);
+  }
+
+  function useFigure(id: string) {
+    switchTo('edit');
+    const p = active?.figures;
+    if (mode !== 'edit' || !p) return;
+    p.set([...p.get().filter((x) => x !== id), id]);
+    active?.prompt?.focus();
+  }
+
   select();
   const el = h('form', { class: 'panel input-panel', onsubmit: (e: Event) => void send(e) },
     h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, missing),
     h('div', { class: 'tabs' }, ...tabs),
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
-  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null };
+  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure };
 }

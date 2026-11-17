@@ -75,15 +75,18 @@ export async function saveInput(dataDir: string, data: Buffer): Promise<SavedInp
   return { inputId, ...rel, width: png.info.width, height: png.info.height };
 }
 
-/** H3 sieht Referenzen höchstens mit 2048 px kurzer Kante; größer hochzuladen kostet nur Zeit. */
-export async function refForComfy(file: string): Promise<Buffer> {
-  const meta = await sharp(file).metadata();
-  const short = Math.min(meta.width ?? 0, meta.height ?? 0);
-  if (short <= REF_SHORT_EDGE) return readFileSync(file);
-  const scale = REF_SHORT_EDGE / short;
-  return sharp(file).resize(Math.round((meta.width ?? 0) * scale), Math.round((meta.height ?? 0) * scale)).png().toBuffer();
+/** Zielgröße einer Referenz, nur verkleinern; null = unverändert. Ohne maxPixels: H3 sieht höchstens 2048 px kurze Kante. */
+export function refSize(w: number, h: number, maxPixels?: number): [number, number] | null {
+  const scale = maxPixels ? Math.sqrt(maxPixels / (w * h)) : REF_SHORT_EDGE / Math.min(w, h);
+  return scale < 1 ? [Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale))] : null;
 }
 const REF_SHORT_EDGE = 2048;
+
+export async function refForComfy(file: string, maxPixels?: number): Promise<Buffer> {
+  const meta = await sharp(file).metadata();
+  const size = refSize(meta.width ?? 0, meta.height ?? 0, maxPixels);
+  return size ? sharp(file).resize(size[0], size[1]).png().toBuffer() : readFileSync(file);
+}
 
 /** SHA-256 als Hex; benennt Uploads und die Dateien in ComfyUIs input-Ordner nach Inhalt. */
 export function contentHash(data: Buffer): string {

@@ -42,13 +42,15 @@ interface Callbacks {
   onReference?: (g: Generation) => void;
   /** Kurzname des Zielmodells für einen Knopf, null = ohne Zusatz. */
   targetName?: (g: Generation | null, mode: Mode) => string | null;
+  /** Fehlt, wenn kein Modell mit Referenzbildern bearbeiten kann. */
+  onFigure?: (g: Generation) => void;
   /** Fehlt, wenn kein Modell Bild → Video kann. */
   onVideo?: (g: Generation) => void;
   /** Video-Shots: Ergebnis liegt im Zielordner, die Vorschau ist nur der letzte Frame. */
   isVideo?: (g: Generation) => boolean;
 }
 
-export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onVideo, targetName, isVideo }: Callbacks): ResultView {
+export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onFigure, onVideo, targetName, isVideo }: Callbacks): ResultView {
   let current: string | null = null;
   let shown: Generation | null = null;
   let lastEventAt = 0;
@@ -217,6 +219,7 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
       h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix')),
       h('button', { type: 'button', class: 'button ghost', onclick: () => onContinue(g) }, ...to(t('res.continue'), 'edit')),
       ...(onReference ? [h('button', { type: 'button', class: 'button ghost', title: t('res.asRefTitle'), onclick: () => onReference(g) }, ...to(t('res.asRef'), 'edit', null))] : []),
+      ...(onFigure ? [h('button', { type: 'button', class: 'button ghost', title: t('fig.asTitle'), onclick: () => onFigure(g) }, t('fig.as'))] : []),
       ...(onUpscale ? [h('button', { type: 'button', class: 'button ghost', onclick: () => onUpscale(g) }, t('res.upscale'))] : []),
       ...(onVideo ? [h('button', { type: 'button', class: 'button ghost', title: t('res.toVideoTitle'), onclick: () => onVideo(g) }, ...to(t('res.toVideo'), 'i2v'))] : []),
       h('a', { class: 'button', href: imageUrl(g.id, 'full'), download: `brennglas-${g.id.slice(0, 8)}.png` }, t('res.download')),

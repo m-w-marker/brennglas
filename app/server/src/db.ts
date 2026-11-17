@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
-import type { Generation, GenerationFilter, GenStatus, Page, ParamValue, SeriesRef } from '@brennglas/shared';
+import type { Figure, FigureKind, Generation, GenerationFilter, GenStatus, Page, ParamValue, SeriesRef } from '@brennglas/shared';
 
 export type DB = Database.Database;
 
@@ -39,6 +39,14 @@ const MIGRATIONS = [
   `ALTER TABLE generations ADD COLUMN video_path TEXT;`,
   // Serien: { id, index, size } – mehrere Varianten aus einem Klick
   `ALTER TABLE generations ADD COLUMN series_json TEXT;`,
+  // Figuren: das Porträt ist Referenz 1 des Blatt-Jobs, darum nur dessen ID
+  `CREATE TABLE figures (
+     id          TEXT PRIMARY KEY,
+     name        TEXT NOT NULL,
+     kind        TEXT NOT NULL,
+     sheet_id    TEXT NOT NULL REFERENCES generations(id),
+     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+   );`,
 ];
 
 export interface RefImage {
@@ -275,4 +283,40 @@ export function getChain(db: DB, id: string): Generation[] {
     row = row.parent_id ? getRow(db, row.parent_id) : undefined;
   }
   return chain;
+}
+
+interface FigureRow {
+  id: string;
+  name: string;
+  kind: FigureKind;
+  sheet_id: string;
+  created_at: string;
+}
+
+export function insertFigure(db: DB, f: { id: string; name: string; kind: FigureKind; sheetId: string }): void {
+  db.prepare('INSERT INTO figures (id, name, kind, sheet_id) VALUES (?, ?, ?, ?)').run(f.id, f.name, f.kind, f.sheetId);
+}
+
+/** Neueste zuerst, mit dem Blatt-Job für Status und Vorschau. */
+export function listFigures(db: DB): Figure[] {
+  const rows = db.prepare('SELECT * FROM figures ORDER BY rowid DESC').all() as FigureRow[];
+  return rows.map((r) => {
+    const sheet = getRow(db, r.sheet_id);
+    return { id: r.id, name: r.name, kind: r.kind, sheetId: r.sheet_id, sheet: sheet ? toApi(sheet) : null, createdAt: r.created_at };
+  });
+}
+
+export function getFigure(db: DB, id: string): { name: string; kind: FigureKind; sheetId: string } | undefined {
+  const r = db.prepare('SELECT * FROM figures WHERE id = ?').get(id) as FigureRow | undefined;
+  return r ? { name: r.name, kind: r.kind, sheetId: r.sheet_id } : undefined;
+}
+
+export function deleteFigure(db: DB, id: string): boolean {
+  return db.prepare('DELETE FROM figures WHERE id = ?').run(id).changes > 0;
+}
+
+/** Name der Figur, deren Blatt dieser Job ist – solange es sie gibt, darf das Bild nicht gelöscht werden. */
+export function figureUsing(db: DB, generationId: string): string | null {
+  const r = db.prepare('SELECT name FROM figures WHERE sheet_id = ? LIMIT 1').get(generationId) as { name: string } | undefined;
+  return r?.name ?? null;
 }
