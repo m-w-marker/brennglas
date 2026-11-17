@@ -1,5 +1,15 @@
 # Brennglas
 
+<p align="center"><b>
+<a href="#setup">Setup</a> &nbsp;·&nbsp;
+<a href="#start">Start</a> &nbsp;·&nbsp;
+<a href="#requirements">Requirements</a> &nbsp;·&nbsp;
+<a href="#model-files">Model files</a> &nbsp;·&nbsp;
+<a href="#claude-as-your-director">Claude as your director</a> &nbsp;·&nbsp;
+<a href="#models">Models and licenses</a> &nbsp;·&nbsp;
+<a href="#sample-images">Sample images</a>
+</b></p>
+
 **Ask Claude for a spot. Get a cut clip, rendered on your own GPU.**
 
 [![A day with Mara: the same woman in five shots, directed by Claude over MCP](screenshots/mara.webp)](screenshots/mara.mp4)
@@ -14,8 +24,6 @@ Brennglas is a local web app for open image and video models.
 ComfyUI renders everything on your own GPU.
 One user, one machine, no login.
 It is also an MCP server, so Claude can direct whole clips for you, see [Claude as your director](#claude-as-your-director).
-
-**Jump to:** [Setup](#setup) · [Requirements](#requirements) · [Model files](#model-files) · [Start](#start) · [Claude as your director](#claude-as-your-director) · [Models and licenses](#models)
 
 <table>
 <tr>
