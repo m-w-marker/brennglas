@@ -3,6 +3,7 @@ import type { Generation, ModelInfo } from '@brennglas/shared';
 import { api, subscribe } from './api.ts';
 import { h } from './dom.ts';
 import { lang, setLang, t } from './i18n.ts';
+import { CUT_ID, cutView } from './views/cut.ts';
 import { figures, type Figures } from './views/figures.ts';
 import { gallery, type Gallery } from './views/gallery.ts';
 import { inputPanel, type InputPanel } from './views/input-panel.ts';
@@ -53,7 +54,7 @@ function badges(models: ModelInfo[]): Map<string, string> {
   // Schnitte aus mehreren Shots (POST /api/concat) haben keinen Workflow
   const map = new Map<string, string>([['concat', t('gal.concat')]]);
   for (const m of models) {
-    for (const [mode, wf] of Object.entries(m.modes)) if (wf) map.set(wf, mode === 'edit' ? `${m.short} · Edit` : m.short);
+    for (const [mode, wf] of Object.entries(m.modes)) if (wf) map.set(wf, mode === 'edit' ? `${m.short} · ${t('mode.edit')}` : m.short);
   }
   return map;
 }
@@ -75,6 +76,14 @@ try {
   let gal: Gallery | null = null;
   let input: InputPanel | null = null;
   let figs: Figures | null = null;
+  // Schnittplatz: nur sichtbar, solange er im Modell-Menü gewählt ist; dann ersetzt er die Mitte
+  let cutOn = false;
+  const cut = cutView(() => gal?.setMarks(cutOn ? cut.marks() : new Map()));
+  const toCut = (g: Generation, open = false) => {
+    input?.openTool();
+    if (open) cut.open(g);
+    else cut.add(g);
+  };
   const result = resultView({
     onChange: (id) => gal?.select(id),
     onContinue: (g) => input?.continueFrom(g, 'edit'),
@@ -85,17 +94,32 @@ try {
     onVideo: models.some((m) => m.modes.i2v) ? (g) => input?.continueFrom(g, 'i2v') : undefined,
     targetName: (g, md) => input?.targetName(g, md) ?? null,
     isVideo: (g) => videoWfs.has(g.workflow),
+    onAddCut: (g) => toCut(g),
+    onOpenCut: (g) => toCut(g, true),
   });
   badgeMap = badges(models);
   showGeneration = (g) => result.show(g);
   figs = figures(workflows, models, (g) => result.show(g), (id) => result.follow(id), (list) => input?.setFigures(list), (id) => input?.useFigure(id));
-  gal = gallery((g) => result.show(g), badgeMap, figs);
+  // Im Schnitt legt ein Klick auf ein Video es hinein oder nimmt es heraus
+  gal = gallery((g) => (cutOn ? g.video && cut.toggle(g) : result.show(g)), badgeMap, figs, (g) => toCut(g));
+  const showCut = (on: boolean) => {
+    cutOn = on;
+    // Ausgeblendete Player verstummen, sonst läuft der Ton unsichtbar weiter
+    (on ? result.el : cut.stage).querySelectorAll('video').forEach((v) => v.pause());
+    result.el.classList.toggle('hidden', on);
+    cut.stage.classList.toggle('hidden', !on);
+    gal?.setMarks(on ? cut.marks() : new Map());
+  };
   input = inputPanel(workflows, models, async (req, follow) => {
     const { id } = await api.generate(req);
     if (follow) result.follow(id);
-  }, () => result.refreshActions());
+  }, () => result.refreshActions(), {
+    id: CUT_ID, label: t('cut.name'), group: t('group.tools'), section: cut.settings,
+    submitLabel: t('cut.render'), busyLabel: t('cut.rendering'),
+    enter: () => showCut(true), leave: () => showCut(false), submit: () => cut.render(),
+  });
 
-  root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, gal.el)));
+  root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, cut.stage, gal.el)));
   subscribe((ev) => {
     if (ev.type === 'comfy') setComfy(ev.connected);
     if (ev.type === 'queue') queue.setCount(ev.remaining);

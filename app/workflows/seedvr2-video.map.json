@@ -13,8 +13,8 @@
     "src": {
       "type": "string",
       "label": {
-        "de": "Quellordner (PNG/JPG-Sequenz)",
-        "en": "Source folder (PNG/JPG sequence)"
+        "de": "Quelle: Ordner mit Einzelbildern oder Videodatei (mp4, mov …)",
+        "en": "Source: folder of frames or a video file (mp4, mov …)"
       },
       "placeholder": {
         "de": "z. B. D:\\Renders\\Shot_010",
@@ -91,8 +91,8 @@
       "default": "*",
       "advanced": true,
       "label": {
-        "de": "Dateifilter (* und ?), z. B. Shot_010_*",
-        "en": "File filter (* and ?), e.g. Shot_010_*"
+        "de": "Dateifilter (* und ?), z. B. Shot_010_* – nur bei Ordnern",
+        "en": "File filter (* and ?), e.g. Shot_010_* – folders only"
       }
     },
     "fps": {
@@ -102,8 +102,8 @@
       "max": 120,
       "advanced": true,
       "label": {
-        "de": "Bildrate des Videos",
-        "en": "Video frame rate"
+        "de": "Bildrate des Videos (Videodatei: aus der Datei)",
+        "en": "Video frame rate (video file: taken from the file)"
       }
     }
   },

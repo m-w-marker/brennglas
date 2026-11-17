@@ -1,12 +1,16 @@
 // Installer: ComfyUI, Custom Nodes, Abhängigkeiten, Modelle (→ docs/plan/plan_installer.md Phase 2 und 3).
 // Start über install.bat in der Wurzel; jeder Lauf prüft den Stand und ergänzt nur, was fehlt.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, rmSync, statfsSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, renameSync, rmSync, statfsSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { catalog, download, filesToLoad, GatedError, isPresent, remoteSize, type CatalogFile, type CatalogModel } from './files.ts';
-import { COMFY_ASSET, COMFY_MIN, COMFY_RELEASE, comfyVersion, isPortableComfy, pickComfyAsset, readEnv, versionAtLeast, writeEnv } from './setup.ts';
+import { COMFY_ASSET, COMFY_MIN, COMFY_RELEASE, comfyVersion, FFMPEG_RELEASE, isPortableComfy, pickComfyAsset, pickFfmpegAsset, readEnv, versionAtLeast, writeEnv } from './setup.ts';
+import { FFMPEG_DIR, toolPath } from '../tools.ts';
+import type { Text } from '@brennglas/shared';
+
+const en = (x: Text): string => (typeof x === 'string' ? x : x.en);
 
 const APP = fileURLToPath(new URL('../../../', import.meta.url));
 const ENV = join(APP, '.env');
@@ -38,11 +42,15 @@ function progress(name: string) {
   return (done: number, total: number | null) => {
     if (Date.now() - last < 500) return;
     last = Date.now();
-    process.stdout.write(`\r  ${name}  ${gb(done)}${total ? ` of ${gb(total)}` : ''}   `);
+    const size = (n: number) => (total && total < 1024 ** 3 ? `${Math.round(n / 1024 ** 2)} MB` : gb(n));
+    process.stdout.write(`\r  ${name}  ${size(done)}${total ? ` of ${size(total)}` : ''}   `);
   };
 }
 
 const freeBytes = (dir: string) => { const s = statfsSync(dir); return s.bavail * s.bsize; };
+
+// Windows bringt tar mit, es entpackt auch 7z und zip.
+const TAR = (() => { const root = process.env.SystemRoot ?? process.env.windir; return root ? join(root, 'System32', 'tar.exe') : 'tar.exe'; })();
 
 // --- 1. ComfyUI ---
 async function installComfy(parent: string): Promise<void> {
@@ -55,9 +63,7 @@ async function installComfy(parent: string): Promise<void> {
   console.log(`Downloading ComfyUI ${asset.version} (${gb(asset.size)}) to ${parent}`);
   await download(asset.url, archive, undefined, progress(COMFY_ASSET));
   console.log('\nUnpacking ComfyUI ...');
-  const systemRoot = process.env.SystemRoot ?? process.env.windir;
-  const tar = systemRoot ? join(systemRoot, 'System32', 'tar.exe') : 'tar.exe';
-  const r = spawnSync(tar, ['-xf', archive, '-C', parent], { stdio: 'inherit' });
+  const r = spawnSync(TAR, ['-xf', archive, '-C', parent], { stdio: 'inherit' });
   if (r.status !== 0) throw new Error(`Unpacking failed. Unpack ${archive} with 7-Zip into ${parent}, then run install.bat again.`);
   rmSync(archive, { force: true });
 }
@@ -112,7 +118,33 @@ async function ensureNodes(comfy: string): Promise<void> {
   }
 }
 
-// --- 3. Abhängigkeiten von Brennglas; corepack holt pnpm selbst, nichts wird global installiert ---
+// --- 3. ffmpeg: Schnitt, Videodateien als Quelle, MP4 aus Sequenzen; portabel nach app/runtime/ffmpeg ---
+async function ensureFfmpeg(): Promise<void> {
+  if (toolPath('ffmpeg') !== 'ffmpeg' || spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0) return;
+  if (!(await yes('\nCutting videos and upscaling video files need ffmpeg (about 90 MB). Install it? (y/n) '))) return;
+  const res = await fetch(FFMPEG_RELEASE, { headers: { 'User-Agent': 'brennglas-installer' } });
+  const asset = pickFfmpegAsset(res.ok ? await res.json() : null);
+  if (!asset) return void console.log('Could not find the ffmpeg download on GitHub. Run install.bat again later.');
+  const runtime = dirname(FFMPEG_DIR);
+  const zip = join(runtime, asset.name);
+  // Der Build unter diesem Namen wird täglich neu gebaut: eine halbe Datei von gestern nicht fortsetzen
+  rmSync(`${zip}.part`, { force: true });
+  await download(asset.url, zip, undefined, progress(asset.name));
+  const tmp = join(runtime, 'ffmpeg-tmp');
+  rmSync(tmp, { recursive: true, force: true });
+  mkdirSync(tmp, { recursive: true });
+  if (spawnSync(TAR, ['-xf', zip, '-C', tmp], { stdio: 'inherit' }).status !== 0) {
+    rmSync(zip, { force: true });
+    throw new Error('unpacking failed');
+  }
+  rmSync(FFMPEG_DIR, { recursive: true, force: true });
+  renameSync(join(tmp, asset.name.replace(/\.zip$/, '')), FFMPEG_DIR);
+  rmSync(tmp, { recursive: true, force: true });
+  rmSync(zip, { force: true });
+  console.log(`\nffmpeg ${asset.version} in ${FFMPEG_DIR} (GPL, license in LICENSE.txt there)`);
+}
+
+// --- 4. Abhängigkeiten von Brennglas; corepack holt pnpm selbst, nichts wird global installiert ---
 function ensureDeps(): void {
   const marker = join(APP, 'node_modules', '.modules.yaml');
   if (existsSync(marker) && statSync(marker).mtimeMs >= statSync(join(APP, 'pnpm-lock.yaml')).mtimeMs) return;
@@ -122,7 +154,7 @@ function ensureDeps(): void {
   if (r.status !== 0) throw new Error('Installing Brennglas failed, see the messages above.');
 }
 
-// --- 4. Modelle ---
+// --- 5. Modelle ---
 function status(modelsDir: string, m: CatalogModel): 'installed' | 'partial' | 'missing' {
   const have = m.files.filter((f) => isPresent(modelsDir, f)).length;
   return have === m.files.length ? 'installed' : have ? 'partial' : 'missing';
@@ -155,7 +187,7 @@ async function models(comfy: string): Promise<void> {
     const open = filesToLoad(modelsDir, [m]).filter((f) => sizes.get(f.key) == null);
     const extra = open.some((f) => f.gated) ? ' + gated files (login)' : open.length ? ' + files of unknown size' : '';
     const size = st === 'installed' ? '' : `${gb(need(m)).padStart(9)} to download${extra}`;
-    console.log(`${st === 'installed' ? '[x]' : '[ ]'} ${String(i + 1).padStart(2)}  ${m.spec.name.padEnd(26)} ${st.padEnd(10)}`
+    console.log(`${st === 'installed' ? '[x]' : '[ ]'} ${String(i + 1).padStart(2)}  ${en(m.spec.name).padEnd(26)} ${st.padEnd(10)}`
       + `commercial: ${m.spec.license.commercial.padEnd(8)}${size}`);
   });
 
@@ -165,7 +197,7 @@ async function models(comfy: string): Promise<void> {
   const chosen: CatalogModel[] = [];
   for (const m of picked.filter((x) => status(modelsDir, x) !== 'installed')) {
     const summary = typeof m.spec.license.summary === 'string' ? m.spec.license.summary : m.spec.license.summary.en;
-    console.log(`\n${m.spec.name}: ${m.spec.license.name}\n  ${m.spec.license.url}\n  ${summary}`);
+    console.log(`\n${en(m.spec.name)}: ${m.spec.license.name}\n  ${m.spec.license.url}\n  ${summary}`);
     if (await yes('Accept this license? (y/n) ')) chosen.push(m);
   }
   const todo = filesToLoad(modelsDir, chosen);
@@ -207,6 +239,8 @@ try {
   console.log('Brennglas installer. Run it again any time: it only adds what is missing.\n');
   const comfy = await ensureComfy();
   await ensureNodes(comfy);
+  // Optional: ohne Netz oder bei gesperrter Datei geht es ohne ffmpeg weiter, statt den ganzen Lauf abzubrechen
+  await ensureFfmpeg().catch((e: Error) => console.log(`\nffmpeg could not be installed (${e.message}). Run install.bat again later.`));
   ensureDeps();
   await models(comfy);
   claudeDesktopConfig();

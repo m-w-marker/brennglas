@@ -1,5 +1,11 @@
 import type { Figure, FigureRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
+/** Der Typ kommt aus der Windows-Registry und ist uneinheitlich (.aac = audio/vnd.dlna.adts); die Endung entscheidet. */
+function audioType(file: File): string {
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+  return ({ mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', ogg: 'audio/ogg' } as Record<string, string>)[ext] ?? file.type;
+}
+
 async function json<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => ({}))) as T & { error?: string };
   if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -42,6 +48,14 @@ export const api = {
   createFigure: (req: FigureRequest) =>
     fetch('/api/figures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<Figure>(r)),
   deleteFigure: (id: string) => fetch(`/api/figures/${id}`, { method: 'DELETE' }).then((r) => json<{ ok: true }>(r)),
+  /** Musik für den Schnitt; die Antwort ist der Pfad, den concat als music nimmt. */
+  uploadAudio: (file: File) =>
+    fetch('/api/audio', { method: 'POST', headers: { 'content-type': audioType(file) }, body: file }).then((r) => json<{ path: string }>(r)),
+  concat: (body: Record<string, unknown>) =>
+    fetch('/api/concat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => json<Generation>(r)),
+  concatPreview: (body: Record<string, unknown>) =>
+    fetch('/api/concat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then((r) => json<{ url: string; duration: number }>(r)),
   generate: (req: GenerateRequest) =>
     fetch('/api/generate', {
       method: 'POST',
@@ -57,10 +71,14 @@ export const refUrl = (id: string, n: number) => `/api/images/${id}/ref/${n}`;
 export const GEN_DRAG = 'application/x-brennglas-generation';
 
 /** EventSource verbindet sich bei Abbruch selbst neu; was in der Lücke gesendet wurde, holt onReconnect nach. */
-export function subscribe(onEvent: (ev: SseEvent) => void, onReconnect: () => void = () => {}): EventSource {
-  const es = new EventSource('/api/events');
+export function subscribe(onEvent: (ev: SseEvent) => void, onReconnect: () => void = () => {}): void {
   let opened = false;
-  es.onopen = () => { if (opened) onReconnect(); opened = true; };
-  es.onmessage = (m) => onEvent(JSON.parse(m.data as string) as SseEvent);
-  return es;
+  const open = (): void => {
+    const es = new EventSource('/api/events');
+    es.onopen = () => { if (opened) onReconnect(); opened = true; };
+    es.onmessage = (m) => onEvent(JSON.parse(m.data as string) as SseEvent);
+    // Antwortet der Vite-Proxy beim Backend-Neustart mit 500, gibt EventSource endgültig auf – dann selbst neu.
+    es.onerror = () => { if (es.readyState === EventSource.CLOSED) setTimeout(open, 2000); };
+  };
+  open();
 }

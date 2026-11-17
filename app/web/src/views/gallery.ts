@@ -10,13 +10,33 @@ export interface Gallery {
   select(id: string | null): void;
   /** Nach SSE-Wiederverbindung: offene Kacheln und verpasste neue Einträge nachholen. */
   resync(): void;
+  /** Positionen im Schnitt je Video-ID, als Nummer auf der Kachel. */
+  setMarks(marks: Map<string, string>): void;
 }
 
 const FOLDER_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg>';
 
-export function gallery(onPick: (g: Generation) => void, badges: Map<string, string>, figs: { el: HTMLElement; count: HTMLElement } | null = null): Gallery {
+export function gallery(
+  onPick: (g: Generation) => void, badges: Map<string, string>, figs: { el: HTMLElement; count: HTMLElement } | null = null,
+  onCut: ((g: Generation) => void) | null = null,
+): Gallery {
   const items = new Map<string, Generation>();
   const tiles = new Map<string, HTMLElement>();
+  let marks = new Map<string, string>();
+  const menu = h('div', { class: 'ctx-menu hidden' });
+  document.addEventListener('click', () => menu.classList.add('hidden'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.classList.add('hidden'); });
+  document.body.append(menu);
+  /** Rechtsklick auf ein fertiges Video: in den Schnitt, ohne erst den Schnittplatz zu öffnen. */
+  function context(e: MouseEvent, g: Generation) {
+    if (!onCut || !g.video || g.status !== 'done') return;
+    e.preventDefault();
+    menu.replaceChildren(h('button', { type: 'button', onclick: () => { menu.classList.add('hidden'); onCut(items.get(g.id) ?? g); } }, t('cut.addTo')));
+    menu.style.left = `${Math.min(e.clientX, innerWidth - 180)}px`;
+    menu.style.top = `${Math.min(e.clientY, innerHeight - 50)}px`;
+    menu.classList.remove('hidden');
+  }
+  const markEl = (id: string) => (marks.has(id) ? h('span', { class: 'cut-mark' }, marks.get(id) ?? '') : null);
   let cursor: number | null = null;
   let selected: string | null = null;
   let filter: GenerationFilter = {};
@@ -53,7 +73,8 @@ export function gallery(onPick: (g: Generation) => void, badges: Map<string, str
       class: `tile${g.id === selected ? ' sel' : ''}${g.series ? ' in-series' : ''}`, draggable: g.status === 'done',
       style: g.series ? `--series: hsl(${hue} 70% 60%)` : undefined,
       ondragstart: (e: Event) => (e as DragEvent).dataTransfer?.setData(GEN_DRAG, g.id),
-    }, h('button', { type: 'button', class: 'tile-hit', title: g.prompt, onclick: () => onPick(items.get(g.id) ?? g) }, inner),
+      oncontextmenu: (e: Event) => context(e as MouseEvent, g),
+    }, h('button', { type: 'button', class: 'tile-hit', title: g.prompt, onclick: () => onPick(items.get(g.id) ?? g) }, inner), markEl(g.id),
     g.favorite ? h('span', { class: 'badge' }, '★') : null,
     g.series ? h('span', { class: 'series', title: t('gal.series') }, `${g.series.index}/${g.series.size}`) : null, h('span', { class: 'kind' }, `${g.video ? '▶ ' : ''}${badges.get(g.workflow) ?? g.workflow}`), tileX(g));
   }
@@ -182,5 +203,14 @@ export function gallery(onPick: (g: Generation) => void, badges: Map<string, str
   const el = h('aside', { class: 'panel gallery' },
     figs ? h('div', { class: 'gal-tabs' }, tabImages, tabFigs) : h('h2', {}, t('gal.title'), count),
     images, figs?.el);
-  return { el, load: page, onEvent, select, resync };
+  function setMarks(m: Map<string, string>) {
+    marks = m;
+    for (const [id, el] of tiles) {
+      el.querySelector('.cut-mark')?.remove();
+      const n = markEl(id);
+      if (n) el.append(n);
+    }
+  }
+
+  return { el, load: page, onEvent, select, resync, setMarks };
 }

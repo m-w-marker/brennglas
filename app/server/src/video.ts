@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { extname, isAbsolute, join, parse, resolve } from 'node:path';
@@ -10,7 +10,9 @@ import { finishDone, finishError, getRow, insertGeneration, listUnfinished, setS
 import { broadcast } from './events.ts';
 import { saveOutput } from './images.ts';
 import { BadRequest } from './jobs.ts';
-import { blockSize, listFrames, planBlocks, sequencePattern } from './video-plan.ts';
+import { probe } from './clips.ts';
+import { toolPath } from './tools.ts';
+import { blockSize, freeName, isVideoFile, listFrames, planBlocks, sameBase, sequencePattern, videoStem } from './video-plan.ts';
 
 /** Vorlauf je Block aus der Quelle, damit SeedVR2 an der Blockgrenze nicht kalt startet. */
 const CONTEXT = 2;
@@ -27,7 +29,13 @@ interface Running {
   id: string;
   pid: string | null;
   cancel: boolean;
+  /** ffmpeg beim Zerlegen einer Videodatei; Abbrechen beendet ihn, statt Minuten auf das Ende zu warten. */
+  child: ChildProcess | null;
 }
+
+/** Merkt im Ziel, aus welcher Videodatei die Frames stammen; gleicher Name aus anderer Quelle mischte sonst alte Frames ein. */
+const markerOf = (dst: string, src: string) => join(dst, `.${videoStem(parse(src).base)}.brennglas-quelle`);
+const sourceId = (src: string) => { const s = statSync(src); return `${resolve(src)}|${s.size}|${Math.round(s.mtimeMs)}`; };
 
 class Cancelled extends Error {}
 
@@ -53,7 +61,11 @@ export class VideoJobs {
     for (const r of listUnfinished(db)) {
       if (r.workflow === wf.map.name) finishError(db, r.id, 'Unterbrochen – erneut starten setzt beim letzten fertigen Frame fort');
     }
-    rmSync(join(dataDir, 'video-tmp'), { recursive: true, force: true });
+    try {
+      rmSync(join(dataDir, 'video-tmp'), { recursive: true, force: true });
+    } catch {
+      // ein verwaistes ffmpeg hält noch Dateien offen (EBUSY) – der Start darf daran nicht scheitern
+    }
   }
 
   get name(): string {
@@ -77,15 +89,32 @@ export class VideoJobs {
     }
     const src = String(values.src).trim();
     const dst = String(values.dst).trim();
-    if (!isAbsolute(src) || !existsSync(src) || !statSync(src).isDirectory()) throw new BadRequest(`Quellordner nicht gefunden: ${src}`);
+    const isVideo = isAbsolute(src) && existsSync(src) && statSync(src).isFile() && isVideoFile(src);
+    if (!isAbsolute(src) || !existsSync(src) || !(isVideo || statSync(src).isDirectory())) {
+      throw new BadRequest(`Quelle nicht gefunden – Ordner mit Einzelbildern oder Videodatei (mp4, mov, mkv, webm): ${src}`);
+    }
     if (!isAbsolute(dst)) throw new BadRequest('Zielordner als vollständigen Pfad angeben');
-    // Gleicher Ordner: die Ergebnisse trügen die Namen der Quelle und überschrieben PNG-Originale
-    if (samePath(src, dst)) throw new BadRequest('Zielordner muss ein anderer sein als der Quellordner');
-    const frames = listFrames(readdirSync(src), String(values.pattern));
-    if (frames.length === 0) throw new BadRequest(`Keine Bilder in ${src} passen zu „${String(values.pattern)}“`);
-    if (values.format !== 'png') {
-      if (spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status !== 0) throw new BadRequest('Für ein Video muss ffmpeg installiert sein (im PATH)');
-      if (!sequencePattern(frames.map((f) => parse(f).name))) throw new BadRequest('Video nur bei lückenlos durchnummerierten Frames – sonst Ausgabe PNG wählen');
+    const hasFfmpeg = () => spawnSync(toolPath('ffmpeg'), ['-version'], { stdio: 'ignore' }).status === 0;
+    if (isVideo) {
+      if (!hasFfmpeg()) throw new BadRequest('Für eine Videodatei als Quelle braucht es ffmpeg – install.bat richtet es ein');
+      const marker = markerOf(dst, src);
+      const stem = `${videoStem(parse(src).base)}_`.toLowerCase();
+      // Ohne Marker, aber mit Frames gleichen Namens: Herkunft unbekannt, also auch ablehnen
+      const foreign = existsSync(marker)
+        ? readFileSync(marker, 'utf8').trim() !== sourceId(src)
+        : existsSync(dst) && readdirSync(dst).some((f) => f.toLowerCase().startsWith(stem) && !isVideoFile(f));
+      if (foreign) throw new BadRequest('Im Zielordner liegen Frames eines anderen Videos mit gleichem Namen – anderen Zielordner wählen');
+    } else {
+      // Gleicher Ordner: die Ergebnisse trügen die Namen der Quelle und überschrieben PNG-Originale
+      if (samePath(src, dst)) throw new BadRequest('Zielordner muss ein anderer sein als der Quellordner');
+      const frames = listFrames(readdirSync(src), String(values.pattern));
+      if (frames.length === 0) throw new BadRequest(`Keine Bilder in ${src} passen zu „${String(values.pattern)}“`);
+      const twice = sameBase(frames);
+      if (twice.length) throw new BadRequest(`Gleicher Name, andere Endung – ergäbe dieselbe Zieldatei: ${twice.slice(0, 3).join(', ')}`);
+      if (values.format !== 'png') {
+        if (!hasFfmpeg()) throw new BadRequest('Für ein Video braucht es ffmpeg – install.bat richtet es ein');
+        if (!sequencePattern(frames.map((f) => parse(f).name))) throw new BadRequest('Video nur bei lückenlos durchnummerierten Frames – sonst Ausgabe PNG wählen');
+      }
     }
     values.src = src;
     values.dst = dst;
@@ -109,6 +138,7 @@ export class VideoJobs {
     }
     if (this.running?.id !== id) return false;
     this.running.cancel = true;
+    this.running.child?.kill();
     const pid = this.running.pid;
     if (pid) {
       const q = await this.comfy.queue();
@@ -122,7 +152,7 @@ export class VideoJobs {
     if (this.running) return;
     const id = this.waiting.shift();
     if (!id) return;
-    this.running = { id, pid: null, cancel: false };
+    this.running = { id, pid: null, cancel: false, child: null };
     const tmp = join(this.dataDir, 'video-tmp', id);
     try {
       await this.run(this.running, tmp);
@@ -146,12 +176,32 @@ export class VideoJobs {
     const src = String(p.src);
     const dst = String(p.dst);
     const size = Number(p.size);
-    const frames = listFrames(readdirSync(src), String(p.pattern));
-    if (frames.length === 0) throw new Error('Keine passenden Frames mehr im Quellordner');
+    // Videodatei: erst in Einzelbilder zerlegen, danach läuft alles wie bei einem Ordner; Bildrate und Ton aus der Datei
+    let dir = src;
+    let fps = Number(p.fps);
+    let audio: string | null = null;
+    if (statSync(src).isFile()) {
+      const info = await probe(src);
+      fps = info.fps;
+      if (info.hasAudio) audio = src;
+      dir = join(tmp, 'src');
+      mkdirSync(dir, { recursive: true });
+      setStatus(this.db, job.id, 'running');
+      broadcast({ type: 'status', id: job.id, status: 'running' });
+      broadcast({ type: 'progress', id: job.id, value: 0, max: 0, stage: 'extract' });
+      // 0:V ohne Cover-Bild; feste Rate, damit Bildzahl und Ton auch bei variabler Bildrate (Handy, OBS) zusammenpassen
+      await ffmpeg(['-i', src, '-map', '0:V:0', '-fps_mode', 'cfr', '-r', String(fps), join(dir, `${videoStem(parse(src).base)}_%06d.png`)],
+        (c) => { job.child = c; }).catch((e: unknown) => { throw job.cancel ? new Cancelled() : e; });
+      if (job.cancel) throw new Cancelled();
+      mkdirSync(dst, { recursive: true });
+      writeFileSync(markerOf(dst, src), sourceId(src));
+    }
+    const frames = listFrames(readdirSync(dir), dir === src ? String(p.pattern) : '*');
+    if (frames.length === 0) throw new Error(dir === src ? 'Keine passenden Frames mehr im Quellordner' : 'ffmpeg hat keine Frames geliefert');
     const bases = frames.map((f) => parse(f).name);
     const still = STILL[String(p.still)] ?? STILL.png16 as { ext: string; depth: string };
     const out = (i: number) => join(dst, `${bases[i]}.${still.ext}`);
-    const first = await sharp(join(src, frames[0] as string)).metadata();
+    const first = await sharp(join(dir, frames[0] as string)).metadata();
     const per = blockSize(first.width ?? 1920, first.height ?? 1080, size);
     mkdirSync(dst, { recursive: true });
 
@@ -168,7 +218,7 @@ export class VideoJobs {
       // Eigener Ordner je Block und Lauf: gleiche Eingaben beantwortete ComfyUI aus dem Cache, ohne zu speichern
       const stage = join(tmp, `b${String(b.frames[0])}-${randomUUID().slice(0, 8)}`);
       mkdirSync(stage, { recursive: true });
-      all.forEach((fi, k) => copyFileSync(join(src, frames[fi] as string), join(stage, `${String(k).padStart(6, '0')}${extname(frames[fi] as string)}`)));
+      all.forEach((fi, k) => copyFileSync(join(dir, frames[fi] as string), join(stage, `${String(k).padStart(6, '0')}${extname(frames[fi] as string)}`)));
       const names = all.map((_, k) => `f${String(k).padStart(4, '0')}`);
       const { graph } = applyParams(this.wf, {
         frames: stage, names: names.join('\n'), size, color: String(p.color), ext: still.ext, bitdepth: still.depth,
@@ -191,7 +241,7 @@ export class VideoJobs {
     if (p.format !== 'png') {
       if (job.cancel) throw new Cancelled();
       broadcast({ type: 'progress', id: job.id, value: 0, max: 0, stage: 'encode' });
-      await encode(dst, bases, still.ext, String(p.format), Number(p.fps));
+      await encode(dst, bases, still.ext, String(p.format), fps, audio);
     }
     const saved = await saveOutput(this.dataDir, job.id, readFileSync(out(frames.length - 1)));
     finishDone(this.db, job.id, { ...saved, expandedPrompt: null, durationMs: Date.now() - started });
@@ -230,19 +280,27 @@ export class VideoJobs {
   }
 }
 
-/** Bildfolge → Video neben den Frames; Name aus dem Präfix der Frames. */
-async function encode(dst: string, bases: string[], ext: string, format: string, fps: number): Promise<void> {
+/** Bildfolge → Video neben den Frames; Name aus dem Präfix der Frames, mit Zähler statt zu überschreiben. */
+async function encode(dst: string, bases: string[], ext: string, format: string, fps: number, audio: string | null): Promise<void> {
   const seq = sequencePattern(bases);
   if (!seq) throw new Error('Frames nicht lückenlos nummeriert – Video übersprungen');
   const name = seq.prefix.replace(/[_\-. ]+$/, '') || 'video';
   const codec = format === 'prores'
     ? ['-c:v', 'prores_ks', '-profile:v', '3', '-pix_fmt', 'yuv422p10le']
     : ['-c:v', 'libx264', '-preset', 'slow', '-crf', '14', '-pix_fmt', 'yuv420p', '-movflags', '+faststart'];
-  const file = join(dst, `${name}.${format === 'prores' ? 'mov' : 'mp4'}`);
-  const args = ['-hide_banner', '-loglevel', 'error', '-y', '-framerate', String(fps), '-start_number', String(seq.start),
-    '-i', join(dst, `${seq.pattern}.${ext}`), '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', ...codec, file];
+  const sound = audio ? ['-i', audio, '-map', '0:v', '-map', '1:a:0', '-c:a', format === 'prores' ? 'pcm_s16le' : 'aac', '-b:a', '256k', '-shortest'] : [];
+  const file = join(dst, freeName((f) => existsSync(join(dst, f)), name, format === 'prores' ? 'mov' : 'mp4'));
+  // -frames:v: ältere, längere Folgen mit gleichem Namen im Ziel liest image2 sonst weiter mit ein
+  await ffmpeg(['-framerate', String(fps), '-start_number', String(seq.start), '-i', join(dst, `${seq.pattern}.${ext}`),
+    ...sound, '-frames:v', String(bases.length), '-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2', ...codec, file]);
+}
+
+async function ffmpeg(args: string[], onChild: (c: ChildProcess | null) => void = () => {}): Promise<void> {
+  args = ['-hide_banner', '-loglevel', 'error', '-y', ...args];
   await new Promise<void>((ok, fail) => {
-    const child = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    const child = spawn(toolPath('ffmpeg'), args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    onChild(child);
+    child.on('close', () => onChild(null));
     let err = '';
     child.stderr.on('data', (d: Buffer) => { err = (err + d.toString()).slice(-2000); });
     child.on('error', (e) => fail(new Error(`ffmpeg: ${e.message}`)));

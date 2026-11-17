@@ -56,6 +56,21 @@ export function pickComfyAsset(release: unknown): { url: string; size: number; v
   return { url: a.browser_download_url, size: typeof a.size === 'number' ? a.size : 0, version: String(r?.tag_name ?? '?').replace(/^v/, '') };
 }
 
+export const FFMPEG_RELEASE = 'https://api.github.com/repos/FFmpeg-Builds/FFmpeg-Builds/releases/latest';
+
+/** Höchste stabile Linie als GPL-shared-Build (x264 fürs MP4, DLLs halbieren den Download); nie „master“. */
+export function pickFfmpegAsset(release: unknown): { name: string; url: string; size: number; version: string } | null {
+  const r = release as { assets?: { name?: unknown; browser_download_url?: unknown; size?: unknown }[] } | null;
+  let best: { name: string; url: string; size: number; version: string } | null = null;
+  for (const a of Array.isArray(r?.assets) ? r.assets : []) {
+    const m = typeof a.name === 'string' ? /^ffmpeg-n([\d.]+)-latest-win64-gpl-shared-[\d.]+\.zip$/.exec(a.name) : null;
+    if (!m?.[1] || typeof a.browser_download_url !== 'string') continue;
+    if (best && versionAtLeast(best.version, m[1])) continue;
+    best = { name: a.name as string, url: a.browser_download_url, size: typeof a.size === 'number' ? a.size : 0, version: m[1] };
+  }
+  return best;
+}
+
 /** Ein portables ComfyUI erkennt man am eingebetteten Python neben dem ComfyUI-Ordner. */
 export function isPortableComfy(dir: string): boolean {
   return existsSync(join(dir, 'python_embeded', 'python.exe')) && existsSync(join(dir, 'ComfyUI', 'main.py'));

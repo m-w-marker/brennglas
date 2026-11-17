@@ -26,6 +26,8 @@ interface ImageField {
   take(f: Blob | null | undefined, name?: string): void;
   /** Leert die Leiste und gibt die Bilder heraus, für den Umzug in ein anderes Formular. */
   drain(): Item[];
+  /** Höchstzahl ändern, ohne Bilder zu verwerfen (Szene: Figuren belegen Referenzplätze). */
+  limit(n: number): void;
 }
 
 /** Figuren für eine neue Szene: leere Fläche im Format, je Figur Porträt + Blatt als Referenz. → plan_referenz */
@@ -60,6 +62,21 @@ export interface InputPanel {
   setFigures(list: Figure[]): void;
   /** In den Bearbeiten-Modus und diese Figur für die nächste Szene wählen. */
   useFigure(id: string): void;
+  /** Das Werkzeug (Schnitt) statt eines Modells zeigen. */
+  openTool(): void;
+}
+
+/** Werkzeug im Modell-Menü: eigene Einstellungen links, der Absende-Knopf ruft submit. */
+export interface Tool {
+  id: string;
+  label: string;
+  group: string;
+  section: HTMLElement;
+  submitLabel: string;
+  busyLabel: string;
+  enter(): void;
+  leave(): void;
+  submit(): Promise<void>;
 }
 
 const lbl = (spec: FieldSpec, key: string) => h('span', { class: 'lbl' }, tx(spec.label) ?? key);
@@ -165,7 +182,7 @@ const refToken = (token: string, n: number) => token.replace('{n}', String(n)).r
 
 const ASPECTS: [string, number][] = [['16:9', 16 / 9], ['9:16', 9 / 16], ['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['3:2', 3 / 2], ['2:3', 2 / 3], ['21:9', 21 / 9]];
 
-function figurePicker(token: string): FigurePicker {
+function figurePicker(token: string, onChange: (n: number) => void): FigurePicker {
   let list: Figure[] = [];
   let chosen: string[] = [];
   // Nur die gewählten als Chips, der Rest im Dropdown – bleibt kurz, auch bei vielen Figuren
@@ -196,6 +213,7 @@ function figurePicker(token: string): FigurePicker {
     row.classList.toggle('hidden', chosen.length === 0);
     const names = chosen.map((id) => list.find((f) => f.id === id)?.name).join(', ');
     hint.textContent = chosen.length ? t('scene.hint', { names, next: refToken(token, 2 + 2 * chosen.length) }) : t('scene.pick');
+    onChange(chosen.length);
   }
   render();
   return {
@@ -217,6 +235,7 @@ function figurePicker(token: string): FigurePicker {
 /** Bildleiste: Bild 1 wird bearbeitet, weitere sind Referenzen; bei max 1 ein einzelnes Feld. */
 function imageBar(key: string, spec: FieldSpec, max: number, token: string, onError: (msg: string) => void): ImageField {
   let list: Item[] = [];
+  let cap = max;
   let dragFrom: number | null = null;
   const fileInput = h('input', { type: 'file', accept: 'image/*', multiple: max > 1, class: 'hidden' });
   const box = h('div', { class: 'imgbar' });
@@ -244,7 +263,7 @@ function imageBar(key: string, spec: FieldSpec, max: number, token: string, onEr
       tile.dataset.i = String(i);
       return tile;
     });
-    const plus = list.length < max ? h('button', { type: 'button', class: 'bar-add', title: t('bar.add') }, '+') : null;
+    const plus = list.length < cap ? h('button', { type: 'button', class: 'bar-add', title: t('bar.add') }, '+') : null;
     plus?.addEventListener('click', () => fileInput.click());
     box.replaceChildren(...tiles, ...(plus ? [plus] : []));
   }
@@ -254,7 +273,7 @@ function imageBar(key: string, spec: FieldSpec, max: number, token: string, onEr
       list.forEach(release);
       list = [];
     }
-    if (list.length >= max) { release(it); return onError(t('bar.full', { n: max })); }
+    if (list.length >= cap) { release(it); return onError(t('bar.full', { n: cap })); }
     onError('');
     list.push(it);
     render();
@@ -294,6 +313,8 @@ function imageBar(key: string, spec: FieldSpec, max: number, token: string, onEr
     add,
     take,
     drain: () => { const out = list; list = []; render(); return out; },
+    // Zu viele bleiben stehen und der Server meldet es – stilles Wegwerfen verlöre Bilder
+    limit: (n) => { cap = Math.min(max, Math.max(0, n)); render(); },
   };
 }
 
@@ -328,7 +349,9 @@ function remember(id: string): void {
 function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) => void, sceneable: boolean): WorkflowForm | null {
   const fields = new Map<string, Field>();
   let image: WorkflowForm['image'] = null;
-  const figures = sceneable && wf.refToken && wf.refs >= 2 ? figurePicker(wf.refToken) : null;
+  // Szene: Fläche + je Figur zwei Referenzen, die Leiste trägt nur den Rest
+  const figures = sceneable && wf.refToken && wf.refs >= 2
+    ? figurePicker(wf.refToken, (n) => image?.field.limit(n ? wf.refs - 2 * n : 1 + wf.refs)) : null;
   let prompt: HTMLTextAreaElement | null = null;
   const section = h('div', { class: 'section hidden' });
   const advanced = h('div', { class: 'adv-body' });
@@ -368,6 +391,7 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
 /** Modus-Tabs, darunter die Modelle dieses Modus; das Formular entsteht aus der *.map.json. */
 export function inputPanel(
   workflows: WorkflowInfo[], models: ModelInfo[], onSubmit: (req: GenerateRequest, follow: boolean) => Promise<void>, onModelChange: () => void = () => {},
+  tool: Tool | null = null,
 ): InputPanel {
   const error = h('p', { class: 'form-error' });
   const setError = (msg: string) => { error.textContent = msg; };
@@ -408,14 +432,38 @@ export function inputPanel(
   const ready = (m: ModelInfo) => m.missing?.length === 0;
 
   const tabs = modes.map((md) => h('button', { type: 'button', class: 'tab', onclick: () => select(model?.id, md) }, t(MODE_KEY[md])));
-  const option = (x: ModelInfo) => h('option', { value: x.id }, x.missing?.length ? `${x.name} – ${t('model.notInstalled')}` : x.name);
+  const option = (x: ModelInfo) => h('option', { value: x.id }, x.missing?.length ? `${tx(x.name) ?? x.id} – ${t('model.notInstalled')}` : tx(x.name) ?? x.id);
   const modelSelect = h('select', { class: 'model-select' }, ...GROUPS.map((g) => {
     const list = usable.filter((x) => groupOf(x) === g);
     return list.length ? h('optgroup', { label: t(GROUP_KEY[g]) }, ...list.map(option)) : null;
-  }).filter((x) => x !== null));
+  }).filter((x) => x !== null), tool ? h('optgroup', { label: tool.group }, h('option', { value: tool.id }, tool.label)) : null);
   const licence = h('div', { class: 'lic-line' });
   const missing = h('p', { class: 'model-missing hidden' });
-  modelSelect.addEventListener('change', () => select(modelSelect.value));
+  const tabsEl = h('div', { class: 'tabs' }, ...tabs);
+  modelSelect.addEventListener('change', () => (modelSelect.value === tool?.id ? openTool() : select(modelSelect.value)));
+  let toolOn = false;
+
+  function openTool() {
+    if (!tool) return;
+    toolOn = true;
+    remember(tool.id);
+    modelSelect.value = tool.id;
+    for (const x of [tabsEl, licence, missing, count, pgBox, ...[...forms.values()].map((o) => o.section)]) x.classList.add('hidden');
+    tool.section.classList.remove('hidden');
+    submit.textContent = busy ? tool.busyLabel : tool.submitLabel;
+    submit.disabled = busy;
+    setError('');
+    tool.enter();
+  }
+
+  function closeTool() {
+    if (!tool || !toolOn) return;
+    toolOn = false;
+    tool.section.classList.add('hidden');
+    tabsEl.classList.remove('hidden');
+    licence.classList.remove('hidden');
+    tool.leave();
+  }
 
   let mode: Mode = modes[0] ?? 't2i';
   let model: ModelInfo | null = null;
@@ -430,6 +478,7 @@ export function inputPanel(
     const wfName = next ? m.modes[next] : undefined;
     const f = wfName ? forms.get(wfName) : undefined;
     if (!next || !f) return;
+    closeTool();
     // Beim Modellwechsel im selben Modus Prompt und Bildleiste mitnehmen
     if (next === mode && active?.prompt && f.prompt && f !== active && !f.prompt.value.trim()) f.prompt.value = active.prompt.value;
     if (next === mode && f !== active && active?.figures && f.figures) f.figures.set(active.figures.get(), active.figures.aspect());
@@ -472,7 +521,7 @@ export function inputPanel(
 
   window.addEventListener('paste', (e) => {
     const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
-    if (!item) return;
+    if (!item || toolOn) return;
     // Text aus Office bringt ein Bild mit; im Textfeld gewinnt der Text
     const target = e.target as HTMLElement | null;
     if (target?.closest('input, textarea') && e.clipboardData?.types.includes('text/plain')) return;
@@ -484,6 +533,24 @@ export function inputPanel(
 
   async function send(e?: Event) {
     e?.preventDefault();
+    if (toolOn && tool) {
+      if (busy) return;
+      setError('');
+      busy = true;
+      submit.disabled = true;
+      submit.textContent = tool.busyLabel;
+      try {
+        await tool.submit();
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        busy = false;
+        // Während des Renderns kann ein Modell gewählt worden sein, dessen Dateien fehlen
+        submit.disabled = toolOn ? false : !!model?.missing?.length;
+        if (toolOn) submit.textContent = tool.submitLabel;
+      }
+      return;
+    }
     const f = active;
     const m = model;
     if (!f || !m || busy || submit.disabled) return;
@@ -578,7 +645,11 @@ export function inputPanel(
     // Szene aus Figuren: Auswahl und Format zurück, die Leiste trug nur Zusatzbilder
     const figs = typeof g.params.figures === 'string' ? g.params.figures.split(',').filter(Boolean) : [];
     f.figures?.set(figs, typeof g.params.aspect === 'number' ? g.params.aspect : undefined);
-    if (figs.length) f.image?.field.set([]);
+    // Referenzen der Szene: erst je Figur Porträt + Blatt, danach die Zusatzbilder der Leiste
+    if (figs.length) f.image?.field.set(Array.from({ length: Math.max(0, g.refCount - 2 * figs.length) }, (_, k): Item => {
+      const i = 2 * figs.length + 1 + k;
+      return { src: { kind: 'input', id: g.id, index: i }, url: refUrl(g.id, i), name: t('src.ref', { n: i + 1 }) };
+    }));
     if (f.image && g.hasInput) {
       const main: Item = g.parentId
         ? { src: { kind: 'output', id: g.parentId }, url: imageUrl(g.parentId, 'thumb'), name: t('src.chain') }
@@ -609,10 +680,13 @@ export function inputPanel(
     active?.prompt?.focus();
   }
 
+  const startTool = !!tool && remembered() === tool.id;
   select();
+  if (tool) sections.append(tool.section);
   const el = h('form', { class: 'panel input-panel', onsubmit: (e: Event) => void send(e) },
     h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, missing),
-    h('div', { class: 'tabs' }, ...tabs),
+    tabsEl,
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
-  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure };
+  if (startTool) openTool();
+  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure, openTool };
 }

@@ -82,9 +82,9 @@
     "token": "<ref_image_{i}>",
     "targets": [
       {
-        "node": "IN_REFS",
+        "node": "IN_REFS_EXTRA",
         "prefix": "images.image",
-        "start": 1
+        "start": 0
       },
       {
         "node": "IN_PE_REFS",

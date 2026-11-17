@@ -1,7 +1,7 @@
 import type { Figure, FigureKind, Generation, ImageSource, ModelInfo, SseEvent, WorkflowInfo } from '@brennglas/shared';
 import { api, imageUrl, refUrl } from '../api.ts';
 import { h } from '../dom.ts';
-import { t } from '../i18n.ts';
+import { t, tx } from '../i18n.ts';
 import { commercialLabel, ensureLicense } from './license.ts';
 
 export interface Figures {
@@ -102,7 +102,7 @@ export function figures(
       outfit.placeholder = t(person ? 'fig.outfitPh' : 'fig.detailsPh');
     });
     const model = h('select', {}, ...editors.map((m) =>
-      h('option', { value: m.id }, `${m.name} · ${commercialLabel(m)}${m.missing?.length ? ` – ${t('model.notInstalled')}` : ''}`)));
+      h('option', { value: m.id }, `${tx(m.name) ?? m.id} · ${commercialLabel(m)}${m.missing?.length ? ` – ${t('model.notInstalled')}` : ''}`)));
     // Personen: Qwen hält die Gesichtszüge (gemessen, plan_modellhilfe); Produkte: FLUX, kommerziell nutzbar
     const pick = () => {
       const want = kind.value === 'person' ? ['qwen21', 'flux3'] : ['flux3', 'qwen21'];

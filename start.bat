@@ -1,45 +1,49 @@
 @echo off
-rem Startet ComfyUI (falls nicht schon an), Backend und Web, dann den Browser. Pfad zu ComfyUI: COMFY_DIR in app\.env
+rem Starts ComfyUI (unless already running), backend and web, then the browser. ComfyUI folder: COMFY_DIR in app\.env
 setlocal
 cd /d "%~dp0app"
-rem Portables Node von install.bat zuerst; corepack holt pnpm ohne globale Installation.
+rem Portable Node from install.bat first; corepack fetches pnpm without a global install.
 if exist "runtime\node\node.exe" set "PATH=%~dp0app\runtime\node;%PATH%"
 set "COREPACK_ENABLE_DOWNLOAD_PROMPT=0"
 if not exist "node_modules" (
-  echo Brennglas ist noch nicht eingerichtet - bitte zuerst install.bat starten.
+  echo Brennglas is not set up yet - please run install.bat first.
   pause
   exit /b 1
 )
 
-if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do if /i "%%a"=="COMFY_DIR" set "COMFY_DIR=%%b"
+set "PORT=3000"
+if exist ".env" for /f "usebackq eol=# tokens=1,* delims==" %%a in (".env") do (
+  if /i "%%a"=="COMFY_DIR" set "COMFY_DIR=%%~b"
+  if /i "%%a"=="PORT" set "PORT=%%~b"
+)
 
 call :listening 8188
 if not errorlevel 1 (
-  echo ComfyUI laeuft schon.
+  echo ComfyUI is already running.
 ) else if not defined COMFY_DIR (
-  echo COMFY_DIR fehlt in app\.env - ComfyUI bitte selbst starten.
+  echo COMFY_DIR is missing in app\.env - please start ComfyUI yourself.
 ) else if not exist "%COMFY_DIR%\python_embeded\python.exe" (
-  echo Kein ComfyUI unter "%COMFY_DIR%" - Pfad in app\.env pruefen.
+  echo No ComfyUI in "%COMFY_DIR%" - check the path in app\.env.
 ) else (
-  echo Starte ComfyUI ...
+  echo Starting ComfyUI ...
   start "ComfyUI" /d "%COMFY_DIR%" "%COMFY_DIR%\python_embeded\python.exe" -s ComfyUI\main.py --windows-standalone-build --disable-auto-launch
 )
 
-call :listening 3000
+call :listening %PORT%
 if not errorlevel 1 (
-  echo Brennglas laeuft schon.
+  echo Brennglas is already running.
 ) else (
-  echo Starte Brennglas ...
+  echo Starting Brennglas ...
   start "Brennglas" cmd /k corepack pnpm dev
 )
 
-rem Das Backend verbindet sich selbst, sobald ComfyUI oben ist - warten nur auf die Weboberflaeche.
+rem The backend connects by itself once ComfyUI is up - only wait for the web interface.
 for /l %%i in (1,1,60) do (
   call :listening 5173
   if not errorlevel 1 goto open
   timeout /t 1 /nobreak >nul
 )
-echo Weboberflaeche nicht erreichbar - Fenster "Brennglas" pruefen.
+echo Web interface not reachable - check the "Brennglas" window.
 pause
 exit /b 1
 

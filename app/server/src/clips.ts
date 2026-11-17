@@ -2,36 +2,52 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { planConcat, type ClipInfo, type ConcatExtras } from './concat-plan.ts';
+import { encodeArgs, frameRate, planConcat, type ClipInfo, type ConcatExtras, type CutFormat, type Join, type ShotEdit } from './concat-plan.ts';
+import { toolPath } from './tools.ts';
 
-function run(cmd: string, args: string[]): Promise<string> {
+function run(tool: 'ffmpeg' | 'ffprobe', args: string[]): Promise<string> {
+  const cmd = toolPath(tool);
   return new Promise((ok, fail) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     let err = '';
     child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
     child.stderr.on('data', (d: Buffer) => { err += d.toString(); });
-    child.on('error', (e) => fail(new Error(`${cmd}: ${e.message} – ist es installiert und im PATH?`)));
-    child.on('close', (code) => (code === 0 ? ok(out) : fail(new Error(`${cmd} Code ${String(code)}: ${err.trim().slice(-600)}`))));
+    child.on('error', (e) => fail(new Error(`${tool}: ${e.message} – install.bat richtet es ein`)));
+    child.on('close', (code) => (code === 0 ? ok(out) : fail(new Error(`${tool} Code ${String(code)}: ${err.trim().slice(-600)}`))));
   });
 }
 
 export async function probe(file: string): Promise<ClipInfo> {
-  const raw = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate:format=duration', '-of', 'json', file]);
-  const j = JSON.parse(raw) as { streams?: { codec_type?: string; width?: number; height?: number; r_frame_rate?: string }[]; format?: { duration?: string } };
-  const v = j.streams?.find((s) => s.codec_type === 'video');
-  const [num, den] = (v?.r_frame_rate ?? '24/1').split('/').map(Number);
-  const duration = Number(j.format?.duration);
+  const raw = await run('ffprobe', ['-v', 'error', '-show_entries',
+    'stream=codec_type,width,height,r_frame_rate,avg_frame_rate,duration:stream_disposition=attached_pic:format=duration', '-of', 'json', file]);
+  type Stream = { codec_type?: string; width?: number; height?: number; r_frame_rate?: string; avg_frame_rate?: string; duration?: string; disposition?: { attached_pic?: number } };
+  const j = JSON.parse(raw) as { streams?: Stream[]; format?: { duration?: string } };
+  // Cover-Bild in mp4/m4a zählt als Video-Stream, ist aber keins
+  const v = j.streams?.find((s) => s.codec_type === 'video' && !s.disposition?.attached_pic);
+  // Länge der Videospur: ist sie kürzer als der Container, setzte xfade sonst hinter ihr Ende an und verlöre den Rest still
+  const own = Number(v?.duration);
+  const duration = own > 0 ? own : Number(j.format?.duration);
   if (!v?.width || !v.height || !Number.isFinite(duration)) throw new Error(`Kein lesbares Video: ${file}`);
-  return { duration, width: v.width, height: v.height, fps: den ? Math.round(((num ?? 24) / den) * 1000) / 1000 : 24, hasAudio: !!j.streams?.some((s) => s.codec_type === 'audio') };
+  return { duration, width: v.width, height: v.height, fps: frameRate(v.avg_frame_rate, v.r_frame_rate), hasAudio: !!j.streams?.some((s) => s.codec_type === 'audio') };
 }
 
 export interface ConcatOptions {
   fade: number;
+  /** Übergang je Shot-Paar; fehlt er, gilt fade als Überblendung. Zur Endkarte endJoin, sonst fade. */
+  joins?: Join[];
+  endJoin?: Join;
+  /** Kürzen und Tempo je Shot, gleiche Reihenfolge wie files. */
+  edits?: ShotEdit[];
   /** Standbild am Ende (z. B. Logo-Karte), wird wie ein stummer Shot angehängt. */
   endcard?: { file: string; seconds: number };
   music?: { file: string; volume: number; shotVolume: number };
   logo?: { file: string; scale: number; position: 'tl' | 'tr' | 'bl' | 'br' };
+  fadeIn?: number;
+  fadeOut?: number;
+  format?: CutFormat;
+  /** Klein und schnell, zum Ansehen vor dem Rendern. */
+  preview?: boolean;
 }
 
 async function probeImage(file: string): Promise<{ width: number; height: number }> {
@@ -41,7 +57,7 @@ async function probeImage(file: string): Promise<{ width: number; height: number
   return { width: s.width, height: s.height };
 }
 
-/** Shots zu einem MP4 (H.264 + AAC); fade in Sekunden, 0 = harter Schnitt; optional Endkarte, Musik, Logo. */
+/** Shots zu einem MP4 (H.264 + AAC) oder WebM (VP9 + Opus); fade in Sekunden, 0 = harter Schnitt; optional Endkarte, Musik, Logo. */
 export async function concatClips(files: string[], o: ConcatOptions, out: string): Promise<{ duration: number; width: number; height: number }> {
   const clips = await Promise.all(files.map(probe));
   const inputs = files.flatMap((f) => ['-i', f]);
@@ -50,7 +66,9 @@ export async function concatClips(files: string[], o: ConcatOptions, out: string
     clips.push({ ...(await probeImage(o.endcard.file)), duration: o.endcard.seconds, fps, hasAudio: false });
     inputs.push('-loop', '1', '-framerate', String(fps), '-t', String(o.endcard.seconds), '-i', o.endcard.file);
   }
-  const extras: ConcatExtras = {};
+  const extras: ConcatExtras = {
+    ...(o.fadeIn ? { fadeIn: o.fadeIn } : {}), ...(o.fadeOut ? { fadeOut: o.fadeOut } : {}), ...(o.preview ? { maxHeight: 480 } : {}),
+  };
   if (o.music) {
     if (!(await probeHasAudio(o.music.file))) throw new Error(`Keine Tonspur in ${o.music.file}`);
     extras.music = { input: clips.length, volume: o.music.volume, shotVolume: o.music.shotVolume };
@@ -61,10 +79,10 @@ export async function concatClips(files: string[], o: ConcatOptions, out: string
     extras.logo = { input: clips.length + (o.music ? 1 : 0), scale: o.logo.scale, position: o.logo.position };
     inputs.push('-i', o.logo.file);
   }
-  const plan = planConcat(clips, o.fade, extras);
+  const joins: Join[] = [...(o.joins ?? files.slice(1).map(() => ({ duration: o.fade }))), ...(o.endcard ? [o.endJoin ?? { duration: o.fade }] : [])];
+  const plan = planConcat(clips, joins, extras, o.edits);
   await run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...inputs,
-    '-filter_complex', plan.filter, '-map', '[v]', '-map', '[a]',
-    '-c:v', 'libx264', '-crf', '17', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', out]);
+    '-filter_complex', plan.filter, '-map', '[v]', '-map', '[a]', ...encodeArgs(o.format ?? 'mp4', o.preview), out]);
   return plan;
 }
 

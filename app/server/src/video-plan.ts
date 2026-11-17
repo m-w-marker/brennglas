@@ -1,6 +1,35 @@
 // Reine Planung für Video-Jobs: Frames finden, Blöcke schneiden, Nummernmuster erkennen. Ohne I/O, darum im Harness.
 
 const FRAME_EXT = /\.(png|jpe?g|tiff?|webp)$/i;
+const VIDEO_EXT = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
+
+export const isVideoFile = (name: string): boolean => VIDEO_EXT.test(name);
+
+/** Präfix für die Frames einer Videodatei: Name ohne Endung, nur Zeichen, die ffmpeg-Muster und Windows vertragen. */
+export function videoStem(base: string): string {
+  return base.replace(/\.[^.]+$/, '').replace(/[^\w.-]+/g, '_').replace(/^[._]+|[._]+$/g, '') || 'video';
+}
+
+/** Quellen mit gleichem Namen ohne Endung (a.png + A.jpg): beide schrieben in dieselbe Zieldatei. */
+export function sameBase(frames: string[]): string[] {
+  const seen = new Map<string, string>();
+  const out: string[] = [];
+  for (const f of frames) {
+    const b = f.replace(/\.[^.]+$/, '').toLowerCase();
+    const prev = seen.get(b);
+    if (prev) out.push(`${prev} + ${f}`);
+    else seen.set(b, f);
+  }
+  return out;
+}
+
+/** name.ext, sonst name_2.ext, name_3.ext … – ein früheres Video im Ziel wird nie überschrieben. */
+export function freeName(taken: (file: string) => boolean, name: string, ext: string): string {
+  for (let i = 1; ; i++) {
+    const f = i === 1 ? `${name}.${ext}` : `${name}_${i}.${ext}`;
+    if (!taken(f)) return f;
+  }
+}
 
 /** * und ? wie im Dateimanager, ohne Groß/klein; alles andere wörtlich. */
 export function wildcard(pattern: string): RegExp {

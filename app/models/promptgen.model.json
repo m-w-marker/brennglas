@@ -1,6 +1,6 @@
 {
   "id": "promptgen",
-  "name": "Prompt-Assistent",
+  "name": { "de": "Prompt-Assistent", "en": "Prompt Assistant" },
   "short": "Prompt",
   "vendor": "Google Gemma 4 / Qwen 3.5",
   "order": 10,

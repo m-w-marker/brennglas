@@ -31,7 +31,7 @@ export function viewer(): Viewer {
   const cmpBtn = btn(t('view.compare'), t('view.compareTitle'), () => setCompare(!compare));
   const cmpSep = h('i');
   const bar = h('div', { class: 'vbar hidden' },
-    btn('Fit', t('view.fitTitle'), fit), btn('100%', t('view.actualTitle'), actual),
+    btn(t('view.fit'), t('view.fitTitle'), fit), btn('100%', t('view.actualTitle'), actual),
     h('i'), btn('−', t('view.zoomOut'), () => zoomBy(1 / STEP)), pct, btn('+', t('view.zoomIn'), () => zoomBy(STEP)),
     cmpSep, cmpBtn, h('i'), src);
 

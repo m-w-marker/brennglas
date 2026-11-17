@@ -48,9 +48,12 @@ interface Callbacks {
   onVideo?: (g: Generation) => void;
   /** Video-Shots: Ergebnis liegt im Zielordner, die Vorschau ist nur der letzte Frame. */
   isVideo?: (g: Generation) => boolean;
+  /** Schnittplatz: Video hineinlegen, fertigen Schnitt wieder öffnen. */
+  onAddCut?: (g: Generation) => void;
+  onOpenCut?: (g: Generation) => void;
 }
 
-export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onFigure, onVideo, targetName, isVideo }: Callbacks): ResultView {
+export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onFigure, onVideo, targetName, isVideo, onAddCut, onOpenCut }: Callbacks): ResultView {
   let current: string | null = null;
   let shown: Generation | null = null;
   let lastEventAt = 0;
@@ -205,9 +208,14 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
       return name ? [text, h('small', { class: 'to' }, ` · ${name}`)] : [text];
     };
     if (g.video) {
-      return actions.replaceChildren(starButton(g),
-        h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix')),
-        h('a', { class: 'button', href: videoUrl(g.id), download: `brennglas-${g.id.slice(0, 8)}.mp4` }, t('res.downloadVideo')));
+      const ext = g.params.format === 'webm' ? 'webm' : 'mp4';
+      // Ein Schnitt hat keinen Workflow zum Remixen, er öffnet sich im Schnittplatz
+      const again = g.workflow === 'concat' && onOpenCut
+        ? h('button', { type: 'button', class: 'button ghost', onclick: () => onOpenCut(g) }, t('cut.openIn'))
+        : h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix'));
+      return actions.replaceChildren(starButton(g), again,
+        ...(onAddCut ? [h('button', { type: 'button', class: 'button ghost', onclick: () => onAddCut(g) }, t('cut.addTo'))] : []),
+        h('a', { class: 'button', href: videoUrl(g.id), download: `brennglas-${g.id.slice(0, 8)}.${ext}` }, t('res.downloadVideo', { fmt: ext.toUpperCase() })));
     }
     if (isVideo?.(g)) {
       return actions.replaceChildren(starButton(g),

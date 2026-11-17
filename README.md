@@ -38,10 +38,13 @@ It is also an MCP server, so Claude can direct whole clips for you, see [Claude 
 - Consistent characters and products: save a person or product once (portrait and a reference sheet with four views), then put up to three of them into any new scene.
 - Text to video, image to video, and first plus last frame video, with sound.
 - Camera presets and looks for video, and real camera paths with Wan Fun Camera.
-- Upscaling of images to 8K and of render sequences to UHD 4K.
+- Upscaling of images to 8K, and of render sequences or video files (MP4, MOV …, sound is kept) to UHD 4K.
 - A prompt assistant that turns short notes (in any language) into a good English prompt.
 - Live preview while rendering, before/after slider, remix, edit chains, queue.
 - A gallery with search, favorites and series.
+- A simple video editor: put shots from the gallery in order, trim them, change their speed, pick a transition per cut
+  (cut, dissolve, dip to black or white, wipe, slide), fade in and out, add music, logo and end card, preview it in seconds
+  and render MP4 or WebM.
 - Claude can drive Brennglas as a director over MCP: plan shots, render, check details, cut the clip.
 - Interface in English and German.
 
@@ -73,7 +76,8 @@ The tools Claude gets:
 - `inspect_image` shows a region of a result at full resolution.
 - `figures` and `create_figure` list and save characters and products; `generate` puts them into new scenes.
 - `last_frame` takes the last frame of a video as the start of the next shot.
-- `concat` cuts shots into one clip with cuts or fades, music, logo and end card.
+- `concat` cuts shots into one clip with cuts, fades, dips to black or white, wipes or slides, music, logo and end card, as MP4 or WebM.
+  You can open the result in the editor to fine-tune it.
 - `list_models`, `gallery` and `enhance_prompt` read the models, browse results and write prompts.
 
 The server also hands Claude a short directing guide with the known limits of the video models and what helps.
@@ -155,7 +159,7 @@ The table is a short summary, not legal advice. Read the license yourself.
 - An NVIDIA GPU. Tested on an RTX 3090 with 24 GB. Support for 16 GB cards is in the works.
 - About 10 GB of free space for ComfyUI, plus the models you pick (5 to 50 GB each).
 - `install.bat` sets up the rest: Node.js, the portable [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (tested with 0.45), the models and, if you want, the custom nodes [VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) and [WAS Node Suite](https://github.com/WASasquatch/was-node-suite-comfyui) for upscaling render sequences.
-- Optional: ffmpeg and ffprobe in your `PATH`. They cut clips, take the last frame of a video and write MP4 or ProRes from upscaled sequences.
+- ffmpeg cuts clips, takes the last frame of a video, writes MP4 or ProRes from upscaled sequences and splits video files into frames. `install.bat` offers it (the official GPL build from [FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds), about 90 MB, kept in `app\runtime\ffmpeg`). An ffmpeg already in your `PATH` works too.
 
 ## Model files
 
@@ -274,6 +278,7 @@ Log in, open the model page and accept the license once. Then their links work i
    - gets a portable Node.js just for Brennglas, if yours is missing or too old (nothing is installed system wide),
    - uses your portable ComfyUI or downloads it (about 2 GB), and offers an update if yours is older than 0.45,
    - asks whether to add the two custom nodes for upscaling render sequences (needs Git),
+   - asks whether to add ffmpeg for cutting clips and upscaling video files (about 90 MB),
    - installs Brennglas itself,
    - lists every model with download size and license and downloads the ones you pick.
 3. Double click `start.bat`.

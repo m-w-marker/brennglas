@@ -81,7 +81,8 @@ export interface ModelLicense {
 /** Inhalt einer app/models/<id>.model.json. */
 export interface ModelSpec {
   id: string;
-  name: string;
+  /** Anzeigename; Produktnamen als Text, ein Gattungsname je Sprache. */
+  name: Text;
   short: string;
   vendor: string;
   order: number;

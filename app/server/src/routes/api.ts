@@ -1,11 +1,12 @@
 import { spawn } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
-import { createReadStream, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import type { FigureKind, FigureRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
-import { concatClips, frameAt } from '../clips.ts';
+import { concatClips, frameAt, type ConcatOptions } from '../clips.ts';
+import { PlanError, TRANSITIONS, type CutFormat, type Join, type ShotEdit, type Transition } from '../concat-plan.ts';
 import {
   deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
   refsOf, setFavorite, toApi, type DB,
@@ -37,6 +38,24 @@ const KINDS = {
 } as const;
 
 const MAX_UPLOAD = 100 * 1024 * 1024;
+const AUDIO_EXT: Record<string, string> = {
+  'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav', 'audio/vnd.wave': 'wav',
+  'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a', 'audio/aac': 'aac', 'audio/x-aac': 'aac', 'audio/vnd.dlna.adts': 'aac',
+  'audio/flac': 'flac', 'audio/x-flac': 'flac', 'audio/ogg': 'ogg',
+};
+
+/** Video mit Range-Anfragen, sonst kann der Player nicht springen. */
+function sendVideo(range: string | undefined, reply: FastifyReply, file: string) {
+  const size = statSync(file).size;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(range ?? '');
+  reply.type(file.endsWith('.webm') ? 'video/webm' : 'video/mp4').header('accept-ranges', 'bytes');
+  if (!m || (m[1] === '' && m[2] === '')) return reply.header('content-length', size).send(createReadStream(file));
+  const start = m[1] === '' ? Math.max(0, size - Number(m[2])) : Number(m[1]);
+  const end = m[1] !== '' && m[2] !== '' ? Math.min(Number(m[2]), size - 1) : size - 1;
+  if (start > end || start >= size) return reply.code(416).header('content-range', `bytes */${size}`).send();
+  return reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1)
+    .send(createReadStream(file, { start, end }));
+}
 
 /** Fremde Daten: nur wohlgeformte Quellen durchlassen. */
 function parseImages(raw: unknown): ImageSource[] | undefined {
@@ -85,6 +104,19 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     } catch (e) {
       return reply.code(400).send({ error: (e as Error).message });
     }
+  });
+
+  // Musik für den Schnitt, ebenfalls als Rohdaten; die Antwort ist der Pfad, den /api/concat als music nimmt
+  app.addContentTypeParser(/^audio\//, { parseAs: 'buffer', bodyLimit: MAX_UPLOAD }, (_req, body, done) => done(null, body));
+  app.post('/api/audio', { bodyLimit: MAX_UPLOAD }, async (req, reply) => {
+    const ext = AUDIO_EXT[String(req.headers['content-type']).split(';')[0]?.trim() ?? ''];
+    if (!ext || !Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return reply.code(415).send({ error: 'Erwartet eine Tondatei (mp3, wav, m4a, aac, flac, ogg)' });
+    }
+    mkdirSync(join(dataDir, 'audio'), { recursive: true });
+    const file = join(dataDir, 'audio', `${createHash('sha256').update(req.body).digest('hex').slice(0, 32)}.${ext}`);
+    if (!existsSync(file)) writeFileSync(file, req.body);
+    return { path: file };
   });
 
   app.post('/api/generate', async (req, reply) => {
@@ -232,6 +264,27 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     };
     const fade = num('fade', 0, 0, 3);
     if (ids.length < 2 || ids.length > 30) return reply.code(400).send({ error: '2 bis 30 Video-IDs nötig' });
+    // Schnittplatz: Übergang je Shot-Paar (Zahl = Überblenden), Kürzen/Tempo je Shot
+    const joinOf = (x: unknown): Join | null => {
+      const j = typeof x === 'number' ? { duration: x } : (x as { duration?: unknown; type?: unknown } | null);
+      if (typeof j?.duration !== 'number' || !Number.isFinite(j.duration)) return null;
+      if (j.type !== undefined && !TRANSITIONS.includes(j.type as Transition)) return null;
+      return { duration: Math.min(3, Math.max(0, j.duration)), ...(j.type ? { type: j.type as Transition } : {}) };
+    };
+    const joins = Array.isArray(body.joins) ? body.joins.map(joinOf) : undefined;
+    if (joins && (joins.length !== ids.length - 1 || joins.includes(null))) {
+      return reply.code(400).send({ error: `joins braucht ${ids.length - 1} Übergänge ({ duration, type: ${TRANSITIONS.join(' | ')} })` });
+    }
+    const endJoin = body.endJoin === undefined ? undefined : joinOf(body.endJoin);
+    if (endJoin === null) return reply.code(400).send({ error: 'endJoin: { duration, type } erwartet' });
+    const edits = Array.isArray(body.edits) ? body.edits.map((x): ShotEdit => {
+      const e = (x ?? {}) as Record<string, unknown>;
+      const n = (k: string) => (typeof e[k] === 'number' && Number.isFinite(e[k]) ? { [k]: e[k] as number } : {});
+      return { ...n('start'), ...n('end'), ...n('speed') };
+    }) : undefined;
+    if (edits && edits.length !== ids.length) return reply.code(400).send({ error: `edits braucht ${ids.length} Einträge, einen je Shot` });
+    const format: CutFormat = body.format === 'webm' ? 'webm' : 'mp4';
+    const preview = body.preview === true;
     const files = ids.map(videoOf);
     const fehlt = ids.filter((_, i) => !files[i]);
     if (fehlt.length) return reply.code(400).send({ error: `Kein fertiges Video: ${fehlt.join(', ')}` });
@@ -250,21 +303,56 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     if (kaputt.length) return reply.code(400).send({ error: `Nicht gefunden oder falsches Format: ${kaputt.join(', ')}` });
     const position = ['tl', 'tr', 'bl', 'br'].includes(String(body.logoPosition)) ? (body.logoPosition as 'tl' | 'tr' | 'bl' | 'br') : 'br';
     const id = randomUUID();
-    const videoPath = `videos/${id}.mp4`;
+    const fadeIn = num('fadeIn', 0, 0, 5);
+    const fadeOut = num('fadeOut', 0, 0, 5);
+    const options: ConcatOptions = {
+      fade, format, preview,
+      ...(joins ? { joins: joins as Join[] } : {}),
+      ...(endJoin ? { endJoin } : {}),
+      ...(edits ? { edits } : {}),
+      ...(fadeIn ? { fadeIn } : {}),
+      ...(fadeOut ? { fadeOut } : {}),
+      ...(endcard ? { endcard: { file: endcard, seconds: num('endcardSeconds', 2, 0.5, 10) } } : {}),
+      ...(music ? { music: { file: music, volume: num('musicVolume', 0.8, 0, 2), shotVolume: num('shotVolume', 0.35, 0, 1) } } : {}),
+      ...(logo ? { logo: { file: logo, scale: num('logoScale', 0.12, 0.03, 0.5), position } } : {}),
+    };
+    // Vorschau: nicht in die Galerie, immer nur die letzte bleibt liegen
+    if (preview) {
+      const dir = join(dataDir, 'cut-preview');
+      try {
+        mkdirSync(dir, { recursive: true });
+        // Ältere Vorschauen weg; eine, die ein zweiter Tab gerade schreibt, ist gesperrt (EBUSY) und bleibt
+        for (const f of readdirSync(dir)) {
+          try {
+            rmSync(join(dir, f), { force: true });
+          } catch {
+            // nächste Vorschau räumt sie weg
+          }
+        }
+        const plan = await concatClips(files as string[], options, join(dir, `${id}.mp4`));
+        return { url: `/api/concat/preview/${id}`, duration: plan.duration };
+      } catch (e) {
+        return reply.code(e instanceof PlanError ? 400 : 502).send({ error: (e as Error).message });
+      }
+    }
+    const videoPath = `videos/${id}.${format}`;
     const started = Date.now();
     try {
       mkdirSync(join(dataDir, 'videos'), { recursive: true });
-      const plan = await concatClips(files as string[], {
-        fade,
-        ...(endcard ? { endcard: { file: endcard, seconds: num('endcardSeconds', 2, 0.5, 10) } } : {}),
-        ...(music ? { music: { file: music, volume: num('musicVolume', 0.8, 0, 2), shotVolume: num('shotVolume', 0.35, 0, 1) } } : {}),
-        ...(logo ? { logo: { file: logo, scale: num('logoScale', 0.12, 0.03, 0.5), position } } : {}),
-      }, join(dataDir, videoPath));
+      const plan = await concatClips(files as string[], options, join(dataDir, videoPath));
       const saved = await saveOutput(dataDir, id, await frameAt(join(dataDir, videoPath), plan.duration / 2));
       const extra = [music && 'Musik', logo && 'Logo', endcard && 'Endkarte'].filter(Boolean).join(', ');
       insertGeneration(db, {
         id, workflow: 'concat', prompt: `Schnitt aus ${ids.length} Shots${extra ? ` mit ${extra}` : ''}`,
-        params: { shots: ids.join(','), fade, ...(music ? { music } : {}), ...(logo ? { logo } : {}), ...(endcard ? { endcard } : {}) },
+        params: {
+          shots: ids.join(','), fade, format, ...(joins ? { joins: JSON.stringify(joins) } : {}), ...(edits ? { edits: JSON.stringify(edits) } : {}),
+          ...(endJoin ? { endJoin: JSON.stringify(endJoin) } : {}),
+          ...(fadeIn ? { fadeIn } : {}), ...(fadeOut ? { fadeOut } : {}),
+          // Angaben wie gesendet (Galerie-ID statt Pfad), damit der Schnittplatz den Schnitt wieder öffnen kann
+          ...(options.music ? { music: options.music.file, musicVolume: options.music.volume, shotVolume: options.music.shotVolume } : {}),
+          ...(options.logo ? { logo: String(body.logo), logoPosition: position, logoScale: options.logo.scale } : {}),
+          ...(options.endcard ? { endcard: String(body.endcard), endcardSeconds: options.endcard.seconds } : {}),
+        },
         parentId: ids[0] ?? null,
       });
       finishDone(db, id, { ...saved, videoPath, expandedPrompt: null, durationMs: Date.now() - started });
@@ -272,9 +360,19 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       if (row) broadcast({ type: 'done', generation: toApi(row) });
       return row ? toApi(row) : { id };
     } catch (e) {
-      rmSync(join(dataDir, videoPath), { force: true });
-      return reply.code(/Überblendung|Mindestens/.test((e as Error).message) ? 400 : 502).send({ error: (e as Error).message });
+      // Ohne Galerie-Eintrag fände niemand die Dateien wieder
+      if (!getRow(db, id)) {
+        for (const p of [videoPath, `images/${id}.png`, `previews/${id}.webp`, `thumbs/${id}.webp`]) rmSync(join(dataDir, p), { force: true });
+      }
+      return reply.code(e instanceof PlanError ? 400 : 502).send({ error: (e as Error).message });
     }
+  });
+
+  app.get('/api/concat/preview/:id', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    const file = /^[0-9a-f-]{36}$/.test(id) ? join(dataDir, 'cut-preview', `${id}.mp4`) : '';
+    if (!file || !existsSync(file)) return reply.code(404).send({ error: 'Vorschau nicht mehr da – neu erstellen' });
+    return sendVideo(req.headers.range, reply, file);
   });
 
   app.get('/api/queue', async (_req, reply) => {
@@ -327,15 +425,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     const rel = getRow(db, (req.params as { id: string }).id)?.video_path;
     const file = rel ? join(dataDir, rel) : undefined;
     if (!file || !existsSync(file)) return reply.code(404).send({ error: 'Video nicht gefunden' });
-    const size = statSync(file).size;
-    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
-    reply.type(file.endsWith('.webm') ? 'video/webm' : 'video/mp4').header('accept-ranges', 'bytes');
-    if (!m || (m[1] === '' && m[2] === '')) return reply.header('content-length', size).send(createReadStream(file));
-    const start = m[1] === '' ? Math.max(0, size - Number(m[2])) : Number(m[1]);
-    const end = m[1] !== '' && m[2] !== '' ? Math.min(Number(m[2]), size - 1) : size - 1;
-    if (start > end || start >= size) return reply.code(416).header('content-range', `bytes */${size}`).send();
-    return reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1)
-      .send(createReadStream(file, { start, end }));
+    return sendVideo(req.headers.range, reply, file);
   });
 
   // Ausschnitt in voller Auflösung, z. B. damit Claude per MCP Hände und Gesichter prüfen kann

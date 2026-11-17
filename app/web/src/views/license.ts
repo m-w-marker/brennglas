@@ -26,7 +26,7 @@ export function ensureLicense(m: ModelInfo): Promise<boolean> {
     const ok = h('button', { type: 'button', class: 'primary' }, t('lic.accept'));
     const cancel = h('button', { type: 'button', class: 'button ghost' }, t('lic.cancel'));
     const dlg = h('dialog', { class: 'lic-dialog' },
-      h('h3', {}, t('lic.title', { name: m.name })),
+      h('h3', {}, t('lic.title', { name: tx(m.name) ?? m.id })),
       h('p', { class: 'lic-name' }, `${m.license.name} · ${commercialLabel(m)}`),
       h('p', {}, tx(m.license.summary) ?? ''),
       h('p', { class: 'lic-note' }, t('lic.note')),

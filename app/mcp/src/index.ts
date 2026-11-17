@@ -22,6 +22,8 @@ Work like a director when asked for a film, spot or sequence:
    0.3 to 0.8 for soft transitions).
 5. Finish in concat, not in the model: one continuous music track (music, the shots' own sounds are ducked under it), the logo
    as a sharp overlay (logo) and an end card image (endcard). Never let the video model render logos or lettering; it smears.
+   A dip to black (transition fadeblack) separates scenes, fade_in/fade_out open from and end on black. The user can open the
+   result in Brennglas' editor (model menu "Video editor" / "Schnitt") to trim shots, change single transitions and render again.
 Known LTX limits and what helps:
 - Camera presets are text appended to the prompt, not a camera path. "Tracking shot" is a sideways move; for a subject walking
   towards the camera use "Lead shot (subject walks towards camera)" or "Slow pull out" and say "full body in frame".
@@ -123,7 +125,7 @@ server.registerTool('list_models', {
   try {
     const { models, byName } = await catalogue();
     const out = models.map((m) => ({
-      id: m.id, name: m.name, license: `${m.license.name} (commercial: ${m.license.commercial})`,
+      id: m.id, name: typeof m.name === 'string' ? m.name : m.name.en, license: `${m.license.name} (commercial: ${m.license.commercial})`,
       ...(m.missing?.length ? { missing: m.missing.map((f) => (m.downloads[f] ? `${f} (download: ${m.downloads[f]})` : f)) } : {}),
       modes: Object.fromEntries(Object.entries(m.modes).filter(([, w]) => w && byName.get(w)?.kind !== 'video').map(([mode, w]) => {
         const wf = byName.get(w as string) as WorkflowInfo;
@@ -202,12 +204,16 @@ server.registerTool('create_figure', {
     kind: z.enum(['person', 'product']).default('person'),
     portrait: z.string().describe('Gallery id, "upload:…" ref or absolute path of the portrait or packshot'),
     outfit: z.string().max(200).optional().describe('Person: clothing for the full body view · product: details the photo does not show'),
-    workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people (non-commercial), flux3-edit for products'),
+    workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people (non-commercial), flux3-edit for products, the other one if that is not installed'),
     wait_seconds: z.number().min(0).max(600).default(180),
   },
 }, async ({ name, kind, portrait, outfit, workflow, wait_seconds }) => {
   try {
-    const f = await backend.createFigure({ name, kind, portrait: await toSource(portrait), workflow: workflow ?? (kind === 'person' ? 'qwen21-edit' : 'flux3-edit'), ...(outfit ? { outfit } : {}) });
+    // Vorgabe wie im Web-Dialog: das bevorzugte Modell nur, wenn es installiert ist, sonst das andere
+    const prefer = kind === 'person' ? ['qwen21-edit', 'flux3-edit'] : ['flux3-edit', 'qwen21-edit'];
+    const installed = new Set((await backend.models()).filter((m) => m.missing?.length === 0).map((m) => m.modes.edit));
+    const wf = workflow ?? prefer.find((w) => installed.has(w)) ?? prefer[0] as string;
+    const f = await backend.createFigure({ name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}) });
     const g = await waitFor(f.sheetId, wait_seconds);
     const failed = g.status === 'error' || g.status === 'cancelled';
     // Gescheitertes Blatt: Figur wieder weg, sonst blockiert sie den Namen
@@ -296,11 +302,16 @@ server.registerTool('last_frame', {
 
 server.registerTool('concat', {
   title: 'Join shots into one clip',
-  description: 'Joins finished videos (gallery ids, in order) into one MP4 that appears in the gallery. Shots are matched to the first '
-    + 'shot\x27s size and frame rate; shots without sound get silence. fade: seconds of cross-fade between shots, 0 = hard cut.',
+  description: 'Joins finished videos (gallery ids, in order) into one MP4 or WebM that appears in the gallery. Shots are matched to the first '
+    + 'shot\x27s size and frame rate; shots without sound get silence. fade: seconds of the transition between shots, 0 = hard cut.',
   inputSchema: {
     ids: z.array(z.string()).min(2).max(30),
     fade: z.number().min(0).max(3).default(0),
+    transition: z.enum(['fade', 'fadeblack', 'fadewhite', 'wipeleft', 'slideleft']).default('fade')
+      .describe('Kind of transition when fade > 0: fade = cross-dissolve, fadeblack/fadewhite = dip to black/white, wipeleft, slideleft'),
+    fade_in: z.number().min(0).max(5).default(0).describe('Seconds of fade from black at the start (picture and sound)'),
+    fade_out: z.number().min(0).max(5).default(0).describe('Seconds of fade to black at the end (picture and sound)'),
+    format: z.enum(['mp4', 'webm']).default('mp4').describe('mp4 = H.264/AAC, plays everywhere; webm = VP9/Opus, royalty free'),
     music: z.string().optional().describe('Absolute path of an audio file (mp3, wav, m4a, aac, flac, ogg); trimmed to the clip, fades out at the end'),
     music_volume: z.number().min(0).max(2).default(0.8),
     shot_volume: z.number().min(0).max(1).default(0.35).describe('Level of the shots\' own sounds under the music'),
@@ -310,10 +321,13 @@ server.registerTool('concat', {
     endcard: z.string().optional().describe('Gallery id or absolute path of an image appended as the last shot'),
     endcard_seconds: z.number().min(0.5).max(10).default(2),
   },
-}, async ({ ids, fade, music, music_volume, shot_volume, logo, logo_position, logo_scale, endcard, endcard_seconds }) => {
+}, async ({ ids, fade, transition, fade_in, fade_out, format, music, music_volume, shot_volume, logo, logo_position, logo_scale, endcard, endcard_seconds }) => {
   try {
+    const join = { duration: fade, type: transition };
     return await report(await backend.concat({
-      ids, fade, musicVolume: music_volume, shotVolume: shot_volume, logoPosition: logo_position, logoScale: logo_scale,
+      ids, fade, format, fadeIn: fade_in, fadeOut: fade_out,
+      ...(fade > 0 && transition !== 'fade' ? { joins: ids.slice(1).map(() => join), endJoin: join } : {}),
+      musicVolume: music_volume, shotVolume: shot_volume, logoPosition: logo_position, logoScale: logo_scale,
       endcardSeconds: endcard_seconds, ...(music ? { music } : {}), ...(logo ? { logo } : {}), ...(endcard ? { endcard } : {}),
     }));
   } catch (e) {
