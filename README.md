@@ -281,8 +281,9 @@ Log in, open the model page and accept the license once. Then their links work i
 Run `install.bat` again any time to add models. Interrupted downloads continue where they stopped.
 For the two gated models it opens the Hugging Face page and asks once for a read token.
 
-**Updating:** run `git pull` in the Brennglas folder (or unpack the new ZIP over the old folder), then run `install.bat` once.
-Your gallery, characters and settings in `app\data` and `app\.env` stay. The database is upgraded on the first start and backed up before.
+> [!TIP]
+> **Updating:** run `git pull` in the Brennglas folder (or unpack the new ZIP over the old folder), then run `install.bat` once.
+> Your gallery, characters and settings in `app\data` and `app\.env` stay. The database is upgraded on the first start and backed up before.
 
 <details><summary>Manual setup without install.bat</summary>
 
