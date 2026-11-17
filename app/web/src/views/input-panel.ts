@@ -62,15 +62,14 @@ export interface InputPanel {
   setFigures(list: Figure[]): void;
   /** In den Bearbeiten-Modus und diese Figur für die nächste Szene wählen. */
   useFigure(id: string): void;
-  /** Das Werkzeug (Schnitt) statt eines Modells zeigen. */
+  /** Das Werkzeug (Schnitt) statt der Modell-Einstellungen zeigen. */
   openTool(): void;
+  /** Zurück zum zuletzt gewählten Modell. */
+  closeTool(): void;
 }
 
-/** Werkzeug im Modell-Menü: eigene Einstellungen links, der Absende-Knopf ruft submit. */
+/** Werkzeug (Reiter in der Kopfleiste): eigene Einstellungen links, der Absende-Knopf ruft submit. */
 export interface Tool {
-  id: string;
-  label: string;
-  group: string;
   section: HTMLElement;
   submitLabel: string;
   busyLabel: string;
@@ -436,19 +435,18 @@ export function inputPanel(
   const modelSelect = h('select', { class: 'model-select' }, ...GROUPS.map((g) => {
     const list = usable.filter((x) => groupOf(x) === g);
     return list.length ? h('optgroup', { label: t(GROUP_KEY[g]) }, ...list.map(option)) : null;
-  }).filter((x) => x !== null), tool ? h('optgroup', { label: tool.group }, h('option', { value: tool.id }, tool.label)) : null);
+  }).filter((x) => x !== null));
   const licence = h('div', { class: 'lic-line' });
   const missing = h('p', { class: 'model-missing hidden' });
   const tabsEl = h('div', { class: 'tabs' }, ...tabs);
-  modelSelect.addEventListener('change', () => (modelSelect.value === tool?.id ? openTool() : select(modelSelect.value)));
+  const modelRow = h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, missing);
+  modelSelect.addEventListener('change', () => select(modelSelect.value));
   let toolOn = false;
 
   function openTool() {
-    if (!tool) return;
+    if (!tool || toolOn) return;
     toolOn = true;
-    remember(tool.id);
-    modelSelect.value = tool.id;
-    for (const x of [tabsEl, licence, missing, count, pgBox, ...[...forms.values()].map((o) => o.section)]) x.classList.add('hidden');
+    for (const x of [modelRow, tabsEl, count, pgBox, ...[...forms.values()].map((o) => o.section)]) x.classList.add('hidden');
     tool.section.classList.remove('hidden');
     submit.textContent = busy ? tool.busyLabel : tool.submitLabel;
     submit.disabled = busy;
@@ -460,8 +458,8 @@ export function inputPanel(
     if (!tool || !toolOn) return;
     toolOn = false;
     tool.section.classList.add('hidden');
+    modelRow.classList.remove('hidden');
     tabsEl.classList.remove('hidden');
-    licence.classList.remove('hidden');
     tool.leave();
   }
 
@@ -680,13 +678,12 @@ export function inputPanel(
     active?.prompt?.focus();
   }
 
-  const startTool = !!tool && remembered() === tool.id;
   select();
   if (tool) sections.append(tool.section);
   const el = h('form', { class: 'panel input-panel', onsubmit: (e: Event) => void send(e) },
-    h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, missing),
-    tabsEl,
+    modelRow, tabsEl,
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
-  if (startTool) openTool();
-  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure, openTool };
+  // select() stellt Modell-Zeile, Formular und Absende-Knopf wieder her
+  const leaveTool = () => toolOn && select(model?.id, mode);
+  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure, openTool, closeTool: leaveTool };
 }

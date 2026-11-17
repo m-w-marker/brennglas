@@ -3,7 +3,7 @@ import type { Generation, ModelInfo } from '@brennglas/shared';
 import { api, subscribe } from './api.ts';
 import { h } from './dom.ts';
 import { lang, setLang, t } from './i18n.ts';
-import { CUT_ID, cutView } from './views/cut.ts';
+import { cutView } from './views/cut.ts';
 import { figures, type Figures } from './views/figures.ts';
 import { gallery, type Gallery } from './views/gallery.ts';
 import { inputPanel, type InputPanel } from './views/input-panel.ts';
@@ -64,8 +64,19 @@ function langSwitch(): HTMLElement {
     h('button', { type: 'button', class: l === lang ? 'on' : '', onclick: () => { if (l !== lang) setLang(l); } }, l.toUpperCase())));
 }
 
+const VIEW = 'brennglas.view';
+const storedView = () => {
+  try {
+    return localStorage.getItem(VIEW);
+  } catch {
+    return null;
+  }
+};
+const genTab =h('button', { type: 'button', class: 'view-tab on' }, t('view.generate'));
+const cutTab = h('button', { type: 'button', class: 'view-tab' }, t('cut.name'));
 const topbar = h('header', { class: 'topbar' },
-  h('div', { class: 'brand' }, 'BRENNGLAS', h('span', {}, t('brand.sub'))),
+  h('div', { class: 'top-left' }, h('div', { class: 'brand' }, 'BRENNGLAS', h('span', {}, t('brand.sub'))),
+    h('nav', { class: 'view-tabs' }, genTab, cutTab)),
   h('div', { class: 'top-right' }, queue.el, memory, freeBtn, langSwitch(), comfy));
 
 try {
@@ -76,7 +87,7 @@ try {
   let gal: Gallery | null = null;
   let input: InputPanel | null = null;
   let figs: Figures | null = null;
-  // Schnittplatz: nur sichtbar, solange er im Modell-Menü gewählt ist; dann ersetzt er die Mitte
+  // Schnittplatz: nur sichtbar, solange sein Reiter gewählt ist; dann ersetzt er die Mitte
   let cutOn = false;
   const cut = cutView(() => gal?.setMarks(cutOn ? cut.marks() : new Map()));
   const toCut = (g: Generation, open = false) => {
@@ -109,15 +120,25 @@ try {
     result.el.classList.toggle('hidden', on);
     cut.stage.classList.toggle('hidden', !on);
     gal?.setMarks(on ? cut.marks() : new Map());
+    genTab.classList.toggle('on', !on);
+    cutTab.classList.toggle('on', on);
+    try {
+      localStorage.setItem(VIEW, on ? 'cut' : 'generate');
+    } catch {
+      // nur Bequemlichkeit
+    }
   };
+  genTab.addEventListener('click', () => input?.closeTool());
+  cutTab.addEventListener('click', () => input?.openTool());
   input = inputPanel(workflows, models, async (req, follow) => {
     const { id } = await api.generate(req);
     if (follow) result.follow(id);
   }, () => result.refreshActions(), {
-    id: CUT_ID, label: t('cut.name'), group: t('group.tools'), section: cut.settings,
+    section: cut.settings,
     submitLabel: t('cut.render'), busyLabel: t('cut.rendering'),
     enter: () => showCut(true), leave: () => showCut(false), submit: () => cut.render(),
   });
+  if (storedView() === 'cut') input.openTool();
 
   root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, cut.stage, gal.el)));
   subscribe((ev) => {

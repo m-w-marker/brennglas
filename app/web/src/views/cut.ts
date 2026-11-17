@@ -4,7 +4,6 @@ import { h } from '../dom.ts';
 import { lang, t } from '../i18n.ts';
 
 /** Schnittplatz → plan_schnitt: links die Einstellungen, in der Mitte Player, Prüfbereich und Filmstreifen. */
-export const CUT_ID = '__cut';
 const STORE = 'brennglas.cut';
 const KINDS = ['cut', 'fade', 'fadeblack', 'fadewhite', 'wipeleft', 'slideleft'] as const;
 type Kind = (typeof KINDS)[number];

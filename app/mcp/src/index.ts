@@ -23,7 +23,7 @@ Work like a director when asked for a film, spot or sequence:
 5. Finish in concat, not in the model: one continuous music track (music, the shots' own sounds are ducked under it), the logo
    as a sharp overlay (logo) and an end card image (endcard). Never let the video model render logos or lettering; it smears.
    A dip to black (transition fadeblack) separates scenes, fade_in/fade_out open from and end on black. The user can open the
-   result in Brennglas' editor (model menu "Video editor" / "Schnitt") to trim shots, change single transitions and render again.
+   result in Brennglas' editor (tab "Video editor" / "Schnitt" in the top bar) to trim shots, change single transitions and render again.
 Known LTX limits and what helps:
 - Camera presets are text appended to the prompt, not a camera path. "Tracking shot" is a sideways move; for a subject walking
   towards the camera use "Lead shot (subject walks towards camera)" or "Slow pull out" and say "full body in frame".
