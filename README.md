@@ -6,6 +6,10 @@
 
 *A day with Mara, 23 seconds, the same woman in five shots. Claude put the saved character into five new scenes with FLUX 3 Klein, checked faces and hands, animated the shots with LTX-2.5 and cut them with fades. No training, no face swap. Click for the MP4 with sound.*
 
+[![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
+
+*A 16 second spot for a made up ceramics brand, from a short request. Three shots of the blue vase, cut with fades, logo and end card. Click for the MP4 with sound.*
+
 Brennglas is a local web app for open image and video models.
 ComfyUI renders everything on your own GPU.
 One user, one machine, no login.
@@ -33,23 +37,6 @@ It is also an MCP server, so Claude can direct whole clips for you, see [Claude 
 - Claude can drive Brennglas as a director over MCP: plan shots, render, check details, cut the clip.
 - Interface in English and German.
 
-The gallery starts with these eight sample images, all made with Brennglas. Remix any of them to see prompt and settings.
-
-<table>
-<tr>
-<td><img src="app/samples/living-room.jpg" width="200" alt="Japandi living room"></td>
-<td><img src="app/samples/blue-vase.jpg" width="200" alt="Blue fluted vase"></td>
-<td><img src="app/samples/suit.jpg" width="200" alt="Model in a charcoal suit"></td>
-<td><img src="app/samples/breakfast.jpg" width="200" alt="Breakfast on a terrace"></td>
-</tr>
-<tr>
-<td><img src="app/samples/golden-retriever.jpg" width="200" alt="Golden retriever on a sofa"></td>
-<td><img src="app/samples/ceramic-vases.jpg" width="200" alt="Ceramic vases"></td>
-<td><img src="app/samples/lounge-chair.jpg" width="200" alt="Leather lounge chair"></td>
-<td><img src="app/samples/camel-coat.jpg" width="200" alt="Portrait in a camel coat"></td>
-</tr>
-</table>
-
 ## Claude as your director
 
 Brennglas comes with an MCP server. With it, Claude works your GPU like a small film crew.
@@ -67,11 +54,9 @@ Try something like this:
 
 > Make a 15 second spot for our ceramics brand HALDE. Three shots of the blue vase in a calm Japandi living room, golden hour light, our logo in the corner and an end card.
 
-This 16 second spot came from a request like this one: three shots, fades, logo and end card.
+The ceramics spot at the top of this page came from this request.
 
-[![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
-
-When the same person or product appears in several shots, Claude saves it as a character first and renders every start image from it, so the face stays the same. The clip at the top of this page was made that way.
+When the same person or product appears in several shots, Claude saves it as a character first and renders every start image from it, so the face stays the same. The Mara spot at the top was made that way.
 
 The tools Claude gets:
 
@@ -119,6 +104,25 @@ If the tools do not show up, Settings, Developer shows the server status and its
   The client must pass images from tool results to the model. Small local models handle single images well, whole clips less so.
 
 Clients that only connect to servers on the internet cannot reach Brennglas. It only listens on your own computer.
+
+## Sample images
+
+The gallery starts with these eight sample images, all made with Brennglas. Remix any of them to see prompt and settings.
+
+<table>
+<tr>
+<td><img src="app/samples/living-room.jpg" width="200" alt="Japandi living room"></td>
+<td><img src="app/samples/blue-vase.jpg" width="200" alt="Blue fluted vase"></td>
+<td><img src="app/samples/suit.jpg" width="200" alt="Model in a charcoal suit"></td>
+<td><img src="app/samples/breakfast.jpg" width="200" alt="Breakfast on a terrace"></td>
+</tr>
+<tr>
+<td><img src="app/samples/golden-retriever.jpg" width="200" alt="Golden retriever on a sofa"></td>
+<td><img src="app/samples/ceramic-vases.jpg" width="200" alt="Ceramic vases"></td>
+<td><img src="app/samples/lounge-chair.jpg" width="200" alt="Leather lounge chair"></td>
+<td><img src="app/samples/camel-coat.jpg" width="200" alt="Portrait in a camel coat"></td>
+</tr>
+</table>
 
 ## Models
 
