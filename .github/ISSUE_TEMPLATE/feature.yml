@@ -1,0 +1,15 @@
+name: Feature request
+description: An idea for Brennglas.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What do you want to do?
+      description: The task, not the solution. Why would it help you?
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How could it work?

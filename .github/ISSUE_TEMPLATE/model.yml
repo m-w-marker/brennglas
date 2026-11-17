@@ -1,0 +1,23 @@
+name: Model request
+description: An open model Brennglas should support.
+labels: [model]
+body:
+  - type: input
+    id: link
+    attributes:
+      label: Model
+      description: Link to Hugging Face or the official page.
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [Image, Edit, Video, Upscale, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this one?
+      description: What it does better than the models in Brennglas.

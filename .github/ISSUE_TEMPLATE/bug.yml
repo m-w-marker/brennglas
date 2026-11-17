@@ -1,0 +1,51 @@
+name: Bug report
+description: Something does not work.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Brennglas version
+      description: In `app/package.json` ("version").
+      placeholder: "0.25.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Install, Start, Image, Edit, Video, Upscale, Characters, Claude / MCP, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Model
+      options: [None / all, H3, Qwen-Image-2.1, FLUX 3 Klein, Krea 2, Z-Image, LTX-2.5, Wan 2.2 Fun Camera, SeedVR2, Prompt assistant]
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options: [Windows 11, Windows 10, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: vram
+    attributes:
+      label: GPU memory
+      options: [24 GB or more, 16 GB, 12 GB, Less]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: Error from the Brennglas window or the end of `ComfyUI/user/comfyui.log`.
+      render: shell
