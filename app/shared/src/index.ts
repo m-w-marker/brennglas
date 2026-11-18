@@ -96,6 +96,8 @@ export interface ModelSpec {
   short: string;
   vendor: string;
   order: number;
+  /** Nur im privaten Repo: der Export ins öffentliche lässt Modell, Workflows und nur hiervon genutzte Downloads weg. */
+  private?: boolean;
   /** Im Installer als Empfehlung markiert, per „rec“ wählbar. */
   recommended?: boolean;
   modes: Partial<Record<Mode, string>>;
