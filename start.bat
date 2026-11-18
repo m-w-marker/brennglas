@@ -34,7 +34,8 @@ if not errorlevel 1 (
   echo Brennglas is already running.
 ) else (
   echo Starting Brennglas ...
-  start "Brennglas" cmd /k corepack pnpm dev
+  rem Direkt -r statt "pnpm dev": das Skript dev riefe pnpm ohne corepack auf, das fehlt ohne globales pnpm
+  start "Brennglas" cmd /k corepack pnpm -r --parallel dev
 )
 
 rem Wait for web and backend (the page fails without the backend); ComfyUI is joined later by the backend itself.
