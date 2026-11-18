@@ -2,7 +2,7 @@
   "3": {
     "inputs": {
       "model": [
-        "10",
+        "52",
         0
       ],
       "positive": [
@@ -53,7 +53,7 @@
         0
       ],
       "text": [
-        "21",
+        "55",
         0
       ]
     },
@@ -184,7 +184,7 @@
   "20": {
     "inputs": {
       "source": [
-        "21",
+        "55",
         0
       ]
     },
@@ -244,6 +244,95 @@
     "class_type": "ResolutionSelector",
     "_meta": {
       "title": "IN_RES"
+    }
+  },
+  "50": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "IN_LORA_ON"
+    }
+  },
+  "51": {
+    "inputs": {
+      "model": [
+        "10",
+        0
+      ],
+      "lora_name": "krea2_darkbrush.safetensors",
+      "strength_model": 1
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "IN_LORA"
+    }
+  },
+  "52": {
+    "inputs": {
+      "switch": [
+        "50",
+        0
+      ],
+      "on_false": [
+        "10",
+        0
+      ],
+      "on_true": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (LoRA)"
+    }
+  },
+  "53": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "IN_LORA_TRIGGER"
+    }
+  },
+  "54": {
+    "inputs": {
+      "string_a": [
+        "21",
+        0
+      ],
+      "string_b": [
+        "53",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Prompt + Trigger"
+    }
+  },
+  "55": {
+    "inputs": {
+      "switch": [
+        "50",
+        0
+      ],
+      "on_false": [
+        "21",
+        0
+      ],
+      "on_true": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (Trigger)"
     }
   }
 }

@@ -4,6 +4,7 @@
   "short": "LTX 2.5",
   "vendor": "Lightricks",
   "order": 6,
+  "recommended": true,
   "modes": {
     "t2v": "ltx25-t2v",
     "i2v": "ltx25-i2v",

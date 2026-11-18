@@ -3,10 +3,15 @@
   "name": "FLUX 3 Image Klein",
   "short": "FLUX 3",
   "vendor": "Black Forest Labs",
-  "order": 5,
+  "order": 4,
+  "recommended": true,
   "modes": {
     "t2i": "flux3-t2i",
     "edit": "flux3-edit"
+  },
+  "lora": {
+    "key": "content_mode_blocks[._]image[._]\\d+[._]attn",
+    "width": 3072
   },
   "license": {
     "name": "FLUX Kommunity License v1.0",

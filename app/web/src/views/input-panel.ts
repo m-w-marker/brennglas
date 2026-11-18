@@ -1,4 +1,4 @@
-import type { FieldSpec, Figure, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
+import type { FieldSpec, Figure, Text, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, refUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
@@ -15,6 +15,8 @@ interface Field {
   el: HTMLElement;
   get(): ParamValue | undefined;
   set(v: ParamValue | undefined): void;
+  /** Nur Auswahlfelder: Optionen austauschen, der Wert bleibt wenn möglich. */
+  setOptions?(options: string[], labels: Record<string, Text>): void;
 }
 
 interface ImageField {
@@ -46,6 +48,8 @@ interface WorkflowForm {
   fields: Map<string, Field>;
   image: { key: string; field: ImageField } | null;
   figures: FigurePicker | null;
+  /** Beim Zeigen des Formulars: veränderliche Auswahl (eigene LoRAs) neu holen. */
+  refresh?: () => void;
 }
 
 export interface InputPanel {
@@ -60,6 +64,8 @@ export interface InputPanel {
   targetName(g: Generation | null, mode: Mode): string | null;
   /** Figurenliste hat sich geändert (angelegt, Blatt fertig, gelöscht). */
   setFigures(list: Figure[]): void;
+  /** Fehlende Dateien neu übernehmen (z. B. sobald ComfyUI antwortet). */
+  setModels(list: ModelInfo[]): void;
   /** In den Bearbeiten-Modus und diese Figur für die nächste Szene wählen. */
   useFigure(id: string): void;
   /** Das Werkzeug (Schnitt) statt der Modell-Einstellungen zeigen. */
@@ -93,6 +99,12 @@ function selectField(key: string, spec: FieldSpec): Field {
     el: h('label', {}, lbl(spec, key), sel, hint),
     get: () => sel.value,
     set: (v) => { if (typeof v === 'string') sel.value = v; showHint(); },
+    setOptions: (options, labels) => {
+      const v = sel.value;
+      sel.replaceChildren(...options.map((o) => h('option', { value: o }, tx(labels[o]) ?? o)));
+      if (options.includes(v)) sel.value = v;
+      showHint();
+    },
   };
 }
 
@@ -150,8 +162,9 @@ function sliderField(key: string, spec: FieldSpec): Field {
 function textField(key: string, spec: FieldSpec): Field {
   const input = h('input', { type: 'text', spellcheck: false, placeholder: tx(spec.placeholder) ?? '', value: typeof spec.default === 'string' ? spec.default : '' });
   return {
-    el: h('label', {}, lbl(spec, key), input),
-    get: () => (input.value.trim() === '' ? undefined : input.value.trim()),
+    el: h('label', {}, lbl(spec, key), input, spec.hint ? h('small', { class: 'opt-hint' }, tx(spec.hint) ?? '') : null),
+    // Optional: leer heißt bewusst leer (kein Trigger), nicht „Server, nimm den Standard“
+    get: () => (input.value.trim() === '' && !spec.optional ? undefined : input.value.trim()),
     set: (v) => { input.value = v === undefined ? '' : String(v); },
   };
 }
@@ -381,10 +394,67 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
     fields.set(key, field);
     (spec.advanced ? advanced : section).append(field.el);
   }
+  // Felder mit showIf folgen ihrem Schalter, auch wenn Remix ihn setzt
+  for (const [key, spec] of Object.entries(wf.inputs)) {
+    const sw = spec.showIf ? fields.get(spec.showIf) : undefined;
+    const field = fields.get(key);
+    if (!sw || !field) continue;
+    const sync = () => field.el.classList.toggle('hidden', sw.get() !== true || sw.el.classList.contains('hidden'));
+    const set = sw.set;
+    sw.set = (v) => { set(v); sync(); };
+    sw.el.addEventListener('change', sync);
+    sync();
+  }
+  const refresh = loraWiring(wf, fields);
   if (advanced.childElementCount > 0) {
     section.append(h('details', { class: 'adv' }, h('summary', {}, t('form.advanced')), advanced));
   }
-  return prompt || image || wf.kind === 'video' ? { wf, section, prompt, fields, image, figures } : null;
+  return prompt || image || wf.kind === 'video' ? { wf, section, prompt, fields, image, figures, refresh } : null;
+}
+
+const TRIGGERS = 'brennglas.loraTriggers';
+function storedTriggers(): Record<string, string> {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(TRIGGERS) ?? '{}');
+    return v && typeof v === 'object' ? (v as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** LoRA: Trigger folgt der Auswahl (eigene Änderung je Datei gemerkt), ohne passende LoRA kein Schalter. */
+function loraWiring(wf: WorkflowInfo, fields: Map<string, Field>): (() => void) | undefined {
+  const key = Object.keys(wf.inputs).find((k) => wf.inputs[k]?.loras);
+  const spec = key ? wf.inputs[key] : undefined;
+  const sel = key ? fields.get(key) : undefined;
+  if (!key || !spec || !sel) return undefined;
+  const trigKey = Object.keys(wf.inputs).find((k) => wf.inputs[k]?.fillFrom === key);
+  const trig = trigKey ? fields.get(trigKey) : undefined;
+  const sw = spec.showIf ? fields.get(spec.showIf) : undefined;
+  const file = () => String(sel.get() ?? '');
+  const fill = () => trig?.set(storedTriggers()[file()] ?? spec.triggers?.[file()] ?? '');
+  sel.el.addEventListener('change', fill);
+  trig?.el.addEventListener('input', () => {
+    try {
+      localStorage.setItem(TRIGGERS, JSON.stringify({ ...storedTriggers(), [file()]: String(trig.get() ?? '') }));
+    } catch {
+      // nur Bequemlichkeit
+    }
+  });
+  const apply = () => {
+    sel.setOptions?.(spec.options ?? [], spec.optionLabels ?? {});
+    sw?.el.classList.toggle('hidden', !spec.options?.length);
+    // Versteckter Schalter darf nicht an bleiben, sonst stünden die LoRA-Felder mit leerer Auswahl da
+    if (!spec.options?.length) sw?.set(false);
+  };
+  apply();
+  fill();
+  return () => void api.loras(wf.name).then((r) => {
+    const before = file();
+    Object.assign(spec, { options: r.options, optionLabels: r.optionLabels, triggers: r.triggers });
+    apply();
+    if (file() !== before) fill();
+  }, () => {});
 }
 
 /** Modus-Tabs, darunter die Modelle dieses Modus; das Formular entsteht aus der *.map.json. */
@@ -431,7 +501,8 @@ export function inputPanel(
   const ready = (m: ModelInfo) => m.missing?.length === 0;
 
   const tabs = modes.map((md) => h('button', { type: 'button', class: 'tab', onclick: () => select(model?.id, md) }, t(MODE_KEY[md])));
-  const option = (x: ModelInfo) => h('option', { value: x.id }, x.missing?.length ? `${tx(x.name) ?? x.id} – ${t('model.notInstalled')}` : tx(x.name) ?? x.id);
+  const optionText = (x: ModelInfo) => x.missing?.length ? `${tx(x.name) ?? x.id} – ${t('model.notInstalled')}` : tx(x.name) ?? x.id;
+  const option = (x: ModelInfo) => h('option', { value: x.id }, optionText(x));
   const modelSelect = h('select', { class: 'model-select' }, ...GROUPS.map((g) => {
     const list = usable.filter((x) => groupOf(x) === g);
     return list.length ? h('optgroup', { label: t(GROUP_KEY[g]) }, ...list.map(option)) : null;
@@ -468,6 +539,29 @@ export function inputPanel(
   let active: WorkflowForm | null = null;
   let busy = false;
 
+  function showMissing(m: ModelInfo) {
+    const links = (m.missing ?? []).flatMap((file, i) => {
+      const url = m.downloads[file];
+      return [i ? ', ' : ' ', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, file) : file];
+    });
+    if (m.missing === null) missing.replaceChildren(t('model.unknown'));
+    else missing.replaceChildren(...(m.missing.length ? [t('model.missing'), ...links] : []));
+    missing.classList.toggle('hidden', m.missing !== null && !m.missing.length);
+    if (!toolOn) submit.disabled = busy || !!m.missing?.length;
+  }
+
+  function setModels(list: ModelInfo[]) {
+    for (const x of list) {
+      const m = usable.find((u) => u.id === x.id);
+      if (m) m.missing = x.missing;
+    }
+    for (const o of modelSelect.querySelectorAll('option')) {
+      const m = usable.find((u) => u.id === o.value);
+      if (m) o.textContent = optionText(m);
+    }
+    if (model) showMissing(model);
+  }
+
   /** Das Modell ist global gewählt; die Tabs zeigen nur, was es kann. Fehlt der Modus, gilt der erste. */
   function select(modelId?: string, md?: Mode) {
     const m = usable.find((x) => x.id === modelId) ?? usable.find((x) => x.id === remembered()) ?? usable.find(ready) ?? usable[0];
@@ -497,17 +591,11 @@ export function inputPanel(
       b.classList.toggle('hidden', m.modes[modes[i] as Mode] === undefined);
     });
     for (const o of forms.values()) o.section.classList.toggle('hidden', o !== f);
+    f.refresh?.();
     licence.replaceChildren(t('lic.label'), ' ',
       h('a', { href: m.license.url, target: '_blank', rel: 'noopener noreferrer' }, m.license.name), ` · ${commercialLabel(m)}`);
     licence.title = tx(m.license.summary) ?? '';
-    const links = (m.missing ?? []).flatMap((file, i) => {
-      const url = m.downloads[file];
-      return [i ? ', ' : ' ', url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, file) : file];
-    });
-    if (m.missing === null) missing.replaceChildren(t('model.unknown'));
-    else missing.replaceChildren(...(m.missing.length ? [t('model.missing'), ...links] : []));
-    missing.classList.toggle('hidden', m.missing !== null && !m.missing.length);
-    submit.disabled = busy || !!m.missing?.length;
+    showMissing(m);
     submit.textContent = tx(f.wf.submit) ?? t(f.image ? 'form.edit' : 'form.generate');
     count.classList.toggle('hidden', f.wf.kind === 'video' || f.wf.kind === 'text');
     pgBox.classList.toggle('hidden', f.wf.kind !== 'text' || !pgOut.value);
@@ -561,6 +649,8 @@ export function inputPanel(
       if (!(await ensureLicense(m))) return;
       const params: Record<string, ParamValue> = {};
       for (const [key, field] of f.fields) {
+        // Ausgeblendet (LoRA aus/ohne Auswahl): Backend nimmt den Default, eine leere Auswahl wäre keine erlaubte Option
+        if (field.el.classList.contains('hidden')) continue;
         const v = field.get();
         if (v !== undefined) params[key] = v;
       }
@@ -639,7 +729,8 @@ export function inputPanel(
     const f = active;
     if (!f) return;
     if (f.prompt) f.prompt.value = g.prompt;
-    for (const [key, field] of f.fields) field.set(g.params[key]);
+    // Fehlt ein Wert (Bild älter als das Feld), gilt der Default – nicht der zufällig gerade eingestellte
+    for (const [key, field] of f.fields) field.set(g.params[key] ?? f.wf.inputs[key]?.default);
     // Szene aus Figuren: Auswahl und Format zurück, die Leiste trug nur Zusatzbilder
     const figs = typeof g.params.figures === 'string' ? g.params.figures.split(',').filter(Boolean) : [];
     f.figures?.set(figs, typeof g.params.aspect === 'number' ? g.params.aspect : undefined);
@@ -685,5 +776,5 @@ export function inputPanel(
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
   // select() stellt Modell-Zeile, Formular und Absende-Knopf wieder her
   const leaveTool = () => toolOn && select(model?.id, mode);
-  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, useFigure, openTool, closeTool: leaveTool };
+  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, setModels, useFigure, openTool, closeTool: leaveTool };
 }

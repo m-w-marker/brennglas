@@ -86,6 +86,62 @@
         "de": "Prompt erweitern lassen",
         "en": "Expand prompt"
       }
+    },
+    "loraOn": {
+      "node": "IN_LORA_ON",
+      "field": "value",
+      "type": "bool",
+      "default": false,
+      "label": {
+        "de": "Stil-LoRA nutzen",
+        "en": "Use style LoRA"
+      }
+    },
+    "lora": {
+      "node": "IN_LORA",
+      "field": "lora_name",
+      "type": "enum",
+      "loras": "krea2",
+      "showIf": "loraOn",
+      "label": {
+        "de": "LoRA",
+        "en": "LoRA"
+      }
+    },
+    "loraStrength": {
+      "node": "IN_LORA",
+      "field": "strength_model",
+      "type": "float",
+      "default": 1,
+      "min": 0,
+      "max": 2,
+      "step": 0.05,
+      "showIf": "loraOn",
+      "label": {
+        "de": "LoRA-Stärke",
+        "en": "LoRA strength"
+      }
+    },
+    "loraTrigger": {
+      "node": "IN_LORA_TRIGGER",
+      "field": "value",
+      "type": "string",
+      "optional": true,
+      "default": "",
+      "fillFrom": "lora",
+      "showIf": "loraOn",
+      "label": {
+        "de": "Trigger-Wort",
+        "en": "Trigger word"
+      },
+      "placeholder": {
+        "de": "leer = nichts anhängen",
+        "en": "empty = append nothing"
+      },
+      "hint": {
+        "de": "Kommt automatisch in den Prompt.",
+        "en": "Added to the prompt automatically."
+      }
     }
   },
   "outputs": {

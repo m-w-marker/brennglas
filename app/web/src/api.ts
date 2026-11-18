@@ -1,4 +1,4 @@
-import type { Figure, FigureRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { ClaudeConfig, Figure, FigureRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Der Typ kommt aus der Windows-Registry und ist uneinheitlich (.aac = audio/vnd.dlna.adts); die Endung entscheidet. */
 function audioType(file: File): string {
@@ -25,8 +25,14 @@ export const api = {
     if (cursor) q.set('cursor', String(cursor));
     if (filter.q) q.set('q', filter.q);
     if (filter.favorite) q.set('fav', '1');
+    if (filter.workflows) q.set('wf', filter.workflows.join(','));
+    if (filter.notWorkflows?.length) q.set('nowf', filter.notWorkflows.join(','));
     return fetch(`/api/generations?${q}`).then((r) => json<Page<Generation>>(r));
   },
+  claudeConfig: () => fetch('/api/claude-config').then((r) => json<ClaudeConfig>(r)),
+  usedWorkflows: () => fetch('/api/generations/workflows').then((r) => json<string[]>(r)),
+  loras: (workflow: string) => fetch(`/api/loras/${encodeURIComponent(workflow)}`)
+    .then((r) => json<{ options: string[]; optionLabels: Record<string, Text>; triggers: Record<string, string> }>(r)),
   favorite: (id: string, favorite: boolean) =>
     fetch(`/api/generations/${id}`, {
       method: 'PATCH',

@@ -16,4 +16,6 @@ export const config = {
   workflowsDir: resolve(APP_DIR, 'workflows'),
   modelsDir: resolve(APP_DIR, 'models'),
   samplesDir: resolve(APP_DIR, 'samples'),
+  /** Portables ComfyUI (wie start.bat); nur für den Blick in die LoRA-Dateien. */
+  comfyDir: process.env.COMFY_DIR ?? null,
 };

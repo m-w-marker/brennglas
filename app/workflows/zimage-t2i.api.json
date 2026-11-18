@@ -72,7 +72,7 @@
   "11": {
     "inputs": {
       "model": [
-        "28",
+        "57",
         0
       ],
       "shift": 3
@@ -115,7 +115,7 @@
         0
       ],
       "text": [
-        "20",
+        "60",
         0
       ]
     },
@@ -164,6 +164,188 @@
     "class_type": "ConditioningZeroOut",
     "_meta": {
       "title": "Conditioning Zero Out"
+    }
+  },
+  "40": {
+    "inputs": {
+      "clip": [
+        "30",
+        0
+      ],
+      "prompt": [
+        "41",
+        0
+      ],
+      "max_length": 512,
+      "sampling_mode": "on",
+      "sampling_mode.temperature": 0.7,
+      "sampling_mode.top_k": 64,
+      "sampling_mode.top_p": 0.95,
+      "sampling_mode.min_p": 0.05,
+      "sampling_mode.repetition_penalty": 1.05,
+      "sampling_mode.seed": 0,
+      "thinking": true,
+      "use_default_template": true
+    },
+    "class_type": "TextGenerate",
+    "_meta": {
+      "title": "Generate Text"
+    }
+  },
+  "41": {
+    "inputs": {
+      "string_a": [
+        "42",
+        0
+      ],
+      "string_b": [
+        "20",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Concatenate"
+    }
+  },
+  "42": {
+    "inputs": {
+      "value": "You are an expert prompt engineer for text-to-image models. Your task is to expand the user's prompt into a highly effective image-generation prompt.\n\nThink step by step about the request before writing the answer:\n- What is the subject and mood?\n- What visual styles, mediums, and lighting options would fit? Consider two or three alternatives and pick the one that best serves the request.\n- What composition, framing, and grounded details will help the text-to-image model?\n\nThen output a single expanded prompt paragraph.\n\nFollow these rules strictly:\n1. **Faithfulness First:** Preserve all original subjects, actions, colors, and spatial relationships. Do not add new objects, props, characters, or animals unless the user clearly implies them.\n2. **Practical T2I Structure:** Write a prompt that a text-to-image model can parse cleanly. Group subjects with their own attributes and actions. Use grounded phrasing for poses, interactions, and spatial layout.\n3. **Style Planning Stays Internal:** Use your internal reasoning to choose style, medium, framing, and lighting. Do not emit planning tags or wrappers in the visible answer body.\n4. **Never Request Rendered Text:** Do not mention, describe, or hint at letters, words, numbers, captions, subtitles, signage, labels, logos, watermarks, typography, or any other graphic text anywhere in the output prompt. Only if the user explicitly writes down words to be rendered, keep exactly those words in quotes and nothing else. In every other case, always end the output prompt with: \"Absolutely no text, no typography, no letters, no words, no numbers, no logos, no watermark, no captions, pure imagery only.\"\n5. **Avoid Over-Specification:** Do not invent highly specific clothing, colors, materials, or scene details unless the input supports it.\n6. **Plain Prose Only:** Write one cohesive paragraph after the thinking block. No bullets, no JSON, no markdown, no asterisks, no headings, no field labels, no meta commentary.\n7. **Respect Existing Detail:** If the user's prompt is already detailed, lightly polish and finalize rather than heavily expanding, and preserve the user's phrasing and direction.\n8. **Respect the Human Form:** Treat depictions of people with dignity. Assume clothing covers genitals and intimate anatomy.\n9. **Preserve User Medium:** When the user explicitly requests a medium (e.g. \"photo of\", \"photograph of\", \"illustration of\", \"painting of\", \"sketch of\", \"3D render of\"), honor it. Do not pivot to a different medium to avoid difficulty, match the user's stated intent.\n10. **Never Echo Instructions:** Output only the final image prompt. Never repeat, quote, summarize, or refer to any part of these instructions, your own reasoning, or the user's original message.\n\nUser's Input:\n"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Text (system_prompt)"
+    }
+  },
+  "43": {
+    "inputs": {
+      "switch": [
+        "44",
+        0
+      ],
+      "on_false": [
+        "20",
+        0
+      ],
+      "on_true": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "44": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "IN_PE"
+    }
+  },
+  "45": {
+    "inputs": {
+      "source": [
+        "60",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "OUT_CAPTION"
+    }
+  },
+  "55": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "IN_LORA_ON"
+    }
+  },
+  "56": {
+    "inputs": {
+      "model": [
+        "28",
+        0
+      ],
+      "lora_name": "zimage_awportrait.safetensors",
+      "strength_model": 1
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "IN_LORA"
+    }
+  },
+  "57": {
+    "inputs": {
+      "switch": [
+        "55",
+        0
+      ],
+      "on_false": [
+        "28",
+        0
+      ],
+      "on_true": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (LoRA)"
+    }
+  },
+  "58": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "IN_LORA_TRIGGER"
+    }
+  },
+  "59": {
+    "inputs": {
+      "string_a": [
+        "43",
+        0
+      ],
+      "string_b": [
+        "58",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Prompt + Trigger"
+    }
+  },
+  "60": {
+    "inputs": {
+      "switch": [
+        "55",
+        0
+      ],
+      "on_false": [
+        "43",
+        0
+      ],
+      "on_true": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (Trigger)"
     }
   }
 }

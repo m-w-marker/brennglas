@@ -187,13 +187,15 @@ async function models(comfy: string): Promise<void> {
     const open = filesToLoad(modelsDir, [m]).filter((f) => sizes.get(f.key) == null);
     const extra = open.some((f) => f.gated) ? ' + gated files (login)' : open.length ? ' + files of unknown size' : '';
     const size = st === 'installed' ? '' : `${gb(need(m)).padStart(9)} to download${extra}`;
-    console.log(`${st === 'installed' ? '[x]' : '[ ]'} ${String(i + 1).padStart(2)}  ${en(m.spec.name).padEnd(26)} ${st.padEnd(10)}`
+    const name = en(m.spec.name) + (m.spec.recommended ? ' (recommended)' : '');
+    console.log(`${st === 'installed' ? '[x]' : '[ ]'} ${String(i + 1).padStart(2)}  ${name.padEnd(34)} ${st.padEnd(10)}`
       + `commercial: ${m.spec.license.commercial.padEnd(8)}${size}`);
   });
 
-  const answer = (await ask('\nModels to install (numbers like 2,5 or "all", Enter to skip): ')).toLowerCase();
+  const answer = (await ask('\nModels to install (numbers like 2,5, "rec" for the recommended ones or "all", Enter to skip): ')).trim().toLowerCase();
   if (!answer) return;
-  const picked = answer === 'all' ? all : answer.split(/[ ,]+/).map((n) => all[Number(n) - 1]).filter((m): m is CatalogModel => !!m);
+  const picked = answer === 'all' ? all : answer === 'rec' ? all.filter((m) => m.spec.recommended)
+    : answer.split(/[ ,]+/).map((n) => all[Number(n) - 1]).filter((m): m is CatalogModel => !!m);
   const chosen: CatalogModel[] = [];
   for (const m of picked.filter((x) => status(modelsDir, x) !== 'installed')) {
     const summary = typeof m.spec.license.summary === 'string' ? m.spec.license.summary : m.spec.license.summary.en;

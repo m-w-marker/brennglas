@@ -12,7 +12,7 @@
   "2": {
     "inputs": {
       "model": [
-        "1",
+        "48",
         0
       ],
       "device": "auto",
@@ -93,7 +93,7 @@
         0
       ],
       "prompt": [
-        "22",
+        "51",
         0
       ],
       "negative_prompt": "",
@@ -217,7 +217,7 @@
   "27": {
     "inputs": {
       "source": [
-        "22",
+        "51",
         0
       ]
     },
@@ -329,6 +329,95 @@
     "class_type": "SaveImage",
     "_meta": {
       "title": "OUT_IMAGE"
+    }
+  },
+  "46": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "IN_LORA_ON"
+    }
+  },
+  "47": {
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "lora_name": "qwen21_consistency.safetensors",
+      "strength_model": 1
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "IN_LORA"
+    }
+  },
+  "48": {
+    "inputs": {
+      "switch": [
+        "46",
+        0
+      ],
+      "on_false": [
+        "1",
+        0
+      ],
+      "on_true": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (LoRA)"
+    }
+  },
+  "49": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "IN_LORA_TRIGGER"
+    }
+  },
+  "50": {
+    "inputs": {
+      "string_a": [
+        "22",
+        0
+      ],
+      "string_b": [
+        "49",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Prompt + Trigger"
+    }
+  },
+  "51": {
+    "inputs": {
+      "switch": [
+        "46",
+        0
+      ],
+      "on_false": [
+        "22",
+        0
+      ],
+      "on_true": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (Trigger)"
     }
   }
 }

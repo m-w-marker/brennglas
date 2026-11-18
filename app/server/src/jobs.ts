@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import type { GenerateRequest, Health, ImageSource, MemoryStats, ParamValue, QueueItem } from '@brennglas/shared';
 import type { ComfyClient, ComfyMessage } from './comfy/client.ts';
-import { addRefs, applyParams, dropInput, findNodeId, type Workflow } from './comfy/workflow.ts';
+import { addRefs, applyLora, applyParams, defaultTrigger, dropInput, findNodeId, isSampler, samplerCount, type Workflow } from './comfy/workflow.ts';
+import { gpuLoad } from './gpu.ts';
 import {
   finishDone, finishError, getFigure, getRow, insertGeneration, listUnfinished, refsOf, setComfyId, setStatus, toApi, type DB,
 } from './db.ts';
@@ -22,6 +23,8 @@ interface Active {
   startedAt: number;
   running: boolean;
   stage: string | null;
+  /** Laufender Sampler-Durchgang, 0 = noch keiner. */
+  pass: number;
 }
 
 /** Job-Lebenszyklus. Nur eigene prompt_ids zählen, Events anderer ComfyUI-Clients fallen durch. */
@@ -37,7 +40,11 @@ export class Jobs {
   private readonly workflows: Map<string, Workflow>;
   private readonly dataDir: string;
 
-  constructor(db: DB, comfy: ComfyClient, workflows: Map<string, Workflow>, dataDir: string) {
+  /** Holt eigene LoRAs neu in die Auswahl, bevor ein Auftrag geprüft wird. */
+  private readonly refreshLoras: () => Promise<void>;
+
+  constructor(db: DB, comfy: ComfyClient, workflows: Map<string, Workflow>, dataDir: string, refreshLoras: () => Promise<void> = async () => {}) {
+    this.refreshLoras = refreshLoras;
     this.db = db;
     this.comfy = comfy;
     this.workflows = workflows;
@@ -80,12 +87,20 @@ export class Jobs {
     const min = wf.map.refs?.min ?? 0;
     if (refs.length < min) throw new BadRequest(min === 1 ? 'Zweites Bild fehlt' : `Mindestens ${min + 1} Bilder nötig`);
     if (imageKey) params[imageKey] = 'pruefung.png';
+    if (Object.values(wf.map.inputs).some((s) => s.loras)) {
+      await this.refreshLoras();
+      defaultTrigger(wf.map, params);
+    }
+    let lora: string | null;
     try {
       // erst prüfen, dann hochladen – sonst landet Müll in ComfyUIs input-Ordner
-      addRefs(applyParams(wf, params).graph, wf.map, refs.map(() => 'pruefung.png'));
+      const check = applyParams(wf, params).graph;
+      addRefs(check, wf.map, refs.map(() => 'pruefung.png'));
+      lora = applyLora(check);
     } catch (e) {
       throw new BadRequest((e as Error).message);
     }
+    if (lora && !(await this.comfy.listModels('loras')).includes(lora)) throw new BadRequest(`LoRA-Datei fehlt: ${lora} (gehört in ComfyUIs models/loras)`);
 
     const id = randomUUID();
     if (imageKey && input) {
@@ -99,6 +114,7 @@ export class Jobs {
     }
     const applied = applyParams(wf, params);
     addRefs(applied.graph, wf.map, refNames);
+    applyLora(applied.graph);
     insertGeneration(this.db, {
       id, workflow: req.workflow, prompt, params: scene ? { ...applied.values, ...scene.params } : applied.values,
       // Szene: Bild 1 ist nur die leere Fläche – kein Vorher-Bild, keine Kette
@@ -111,7 +127,7 @@ export class Jobs {
     try {
       const pid = await this.comfy.queuePrompt(applied.graph, true);
       setComfyId(this.db, id, pid);
-      this.active.set(pid, { id, workflow: req.workflow, startedAt: Date.now(), running: false, stage: null });
+      this.active.set(pid, { id, workflow: req.workflow, startedAt: Date.now(), running: false, stage: null, pass: 0 });
       // Ein komplett gecachter Graph ist fertig, bevor wir die prompt_id kennen – einmal nachsehen.
       setTimeout(() => void this.checkHistory(pid), 1500);
     } catch (e) {
@@ -284,8 +300,9 @@ export class Jobs {
     await this.comfy.free();
   }
 
-  memory(): Promise<MemoryStats> {
-    return this.comfy.memory();
+  async memory(): Promise<MemoryStats> {
+    const [m, gpu] = await Promise.all([this.comfy.memory(), gpuLoad()]);
+    return { ...m, gpu };
   }
 
   async health(): Promise<Health> {
@@ -302,6 +319,8 @@ export class Jobs {
     if (m.type === 'status') {
       const remaining = (m.data.status as { exec_info?: { queue_remaining?: number } } | undefined)?.exec_info?.queue_remaining;
       if (typeof remaining === 'number') broadcast({ type: 'queue', remaining });
+      // Fertig-Meldungen gehen nur an den Absender; nach einem Backend-Neustart bleibt nur dieser Rundruf
+      for (const pid of this.active.keys()) void this.checkHistory(pid);
       return;
     }
     const pid = m.data?.prompt_id;
@@ -314,19 +333,27 @@ export class Jobs {
       case 'execution_start':
         this.markRunning(job);
         break;
+      case 'execution_cached': {
+        // Ein Sampler aus dem Cache meldet kein executing, zählt aber als erledigter Durchgang
+        const api = this.workflows.get(job.workflow)?.api ?? {};
+        const nodes = Array.isArray(m.data.nodes) ? m.data.nodes : [];
+        job.pass += nodes.filter((n) => typeof n === 'string' && isSampler(api[n]?.class_type)).length;
+        break;
+      }
       case 'executing': {
         const node = m.data.node;
         if (node === null) return this.finish(pid);
         if (typeof node !== 'string') return;
         this.markRunning(job);
         job.stage = this.workflows.get(job.workflow)?.api[node]?.class_type ?? null;
-        broadcast({ type: 'progress', id: job.id, value: 0, max: 0, stage: job.stage });
+        if (isSampler(job.stage ?? undefined)) job.pass++;
+        broadcast({ type: 'progress', id: job.id, value: 0, max: 0, stage: job.stage, ...this.passes(job) });
         break;
       }
       case 'progress': {
         const value = Number(m.data.value);
         const max = Number(m.data.max);
-        broadcast({ type: 'progress', id: job.id, value, max, stage: job.stage });
+        broadcast({ type: 'progress', id: job.id, value, max, stage: job.stage, ...this.passes(job) });
         break;
       }
       case 'execution_success':
@@ -345,6 +372,12 @@ export class Jobs {
     job.running = true;
     setStatus(this.db, job.id, 'running');
     broadcast({ type: 'status', id: job.id, status: 'running' });
+  }
+
+  /** Durchgang x von y, nur bei mehr als einem Sampler im Graphen. */
+  private passes(job: Active): { pass?: number; passes?: number } {
+    const passes = samplerCount(this.workflows.get(job.workflow)?.api ?? {});
+    return passes > 1 && job.pass > 0 ? { pass: Math.min(job.pass, passes), passes } : {};
   }
 
   private async checkHistory(pid: string): Promise<void> {
@@ -426,7 +459,7 @@ export class Jobs {
       const pid = r.comfy_prompt_id;
       if (!this.active.has(pid)) {
         this.active.set(pid, {
-          id: r.id, workflow: r.workflow, startedAt: Date.parse(r.created_at), running: r.status === 'running', stage: null,
+          id: r.id, workflow: r.workflow, startedAt: Date.parse(r.created_at), running: r.status === 'running', stage: null, pass: 0,
         });
       }
       try {

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { FieldSpec, ParamValue, WorkflowMap } from '@brennglas/shared';
+import type { FieldSpec, InputSpec, ParamValue, WorkflowMap } from '@brennglas/shared';
 
 export interface ApiNode {
   class_type: string;
@@ -20,12 +20,89 @@ export function findNodeId(api: ApiGraph, title: string): string {
   return ids[0] as string;
 }
 
-export function loadWorkflow(dir: string, name: string): Workflow {
+/** Eintrag in `models/loras.json`, Schlüssel = Dateiname in ComfyUIs `models/loras`. */
+export interface LoraEntry {
+  model: string;
+  /** Nur in diesen Modi (z. B. edit für Hilfs-LoRAs); ohne Angabe überall. */
+  modes?: string[];
+  label?: string;
+  trigger?: string;
+  url?: string;
+}
+
+/** Eine wählbare LoRA: aus dem Katalog oder eine eigene Datei mit erkanntem Modell. */
+export interface LoraChoice {
+  file: string;
+  label?: string;
+  trigger?: string;
+}
+
+export function loadWorkflow(dir: string, name: string, loras: Record<string, LoraEntry> = {}): Workflow {
   const api = JSON.parse(readFileSync(join(dir, `${name}.api.json`), 'utf8')) as ApiGraph;
   const map = JSON.parse(readFileSync(join(dir, `${name}.map.json`), 'utf8')) as WorkflowMap;
   // Ein umbenannter Node soll beim Laden auffallen, nicht erst mitten im Job.
   for (const spec of [...Object.values(map.inputs), ...Object.values(map.outputs), ...(map.refs?.targets ?? [])]) findNodeId(api, spec.node);
+  for (const spec of Object.values(map.inputs)) if (spec.loras) setLoraOptions(spec, api, catalogChoices(loras, spec.loras, modeOf(name, spec.loras)));
   return { api, map };
+}
+
+/** Modus aus dem Workflow-Namen (Konvention `<modell>-<modus>`, z. B. qwen21-edit → edit). */
+export const modeOf = (workflow: string, model: string) => (workflow.startsWith(`${model}-`) ? workflow.slice(model.length + 1) : '');
+
+/** Katalog-LoRAs eines Modells, Hilfs-LoRAs nur in ihren Modi. */
+export function catalogChoices(loras: Record<string, LoraEntry>, model: string, mode: string): LoraChoice[] {
+  return Object.entries(loras)
+    .filter(([, e]) => e.model === model && (!e.modes || e.modes.includes(mode)))
+    .map(([file, e]) => ({ file, label: e.label, trigger: e.trigger }));
+}
+
+/** Auswahl, Anzeige und Trigger eines LoRA-Felds; ohne Auswahl bleibt die Datei der Vorlage. */
+export function setLoraOptions(spec: InputSpec, api: ApiGraph, choices: LoraChoice[]): void {
+  const fallback = api[findNodeId(api, spec.node)]?.inputs[spec.field];
+  // Keine Auswahl: leere Liste (das Formular blendet den Schalter aus), Default bleibt die Vorlage
+  spec.options = choices.map((c) => c.file);
+  spec.default = spec.options[0] ?? (typeof fallback === 'string' ? fallback : undefined);
+  spec.optionLabels = {};
+  spec.triggers = {};
+  for (const c of choices) {
+    if (c.label) spec.optionLabels[c.file] = c.label;
+    if (c.trigger) spec.triggers[c.file] = c.trigger;
+  }
+}
+
+/** Katalog der LoRAs; fehlt oder bricht die Datei, gibt es nur keine Auswahl. */
+export function loadLoras(dir: string): Record<string, LoraEntry> {
+  try {
+    const v: unknown = JSON.parse(readFileSync(join(dir, 'loras.json'), 'utf8'));
+    return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, LoraEntry>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Ohne Trigger im Auftrag (Claude, comfy:test) gilt das bekannte Wort der gewählten LoRA; ändert params. */
+export function defaultTrigger(map: WorkflowMap, params: Record<string, ParamValue>): void {
+  const entries = Object.entries(map.inputs);
+  const lora = entries.find(([, s]) => s.loras);
+  const trigger = entries.find(([, s]) => s.fillFrom && s.fillFrom === lora?.[0]);
+  if (!lora || !trigger || params[trigger[0]] !== undefined) return;
+  const file = String(params[lora[0]] ?? lora[1].default);
+  params[trigger[0]] = lora[1].triggers?.[file] ?? '';
+}
+
+const hasTitle = (graph: ApiGraph, title: string) => Object.values(graph).some((n) => n._meta?.title === title);
+
+/** Aus: Loader raus (ComfyUI prüft ihn sonst auch im toten Zweig). An: die gebrauchte Datei. */
+export function applyLora(graph: ApiGraph): string | null {
+  if (!hasTitle(graph, 'IN_LORA')) return null;
+  if ((graph[findNodeId(graph, 'IN_LORA_ON')] as ApiNode).inputs.value !== true) {
+    dropInput(graph, 'IN_LORA');
+    return null;
+  }
+  // Trennzeichen nur mit Trigger, sonst endete der Prompt auf „, “
+  const trigger = (graph[findNodeId(graph, 'IN_LORA_TRIGGER')] as ApiNode).inputs;
+  if (typeof trigger.value === 'string' && trigger.value.trim()) trigger.value = `, ${trigger.value.trim()}`;
+  return String((graph[findNodeId(graph, 'IN_LORA')] as ApiNode).inputs.lora_name);
 }
 
 /** Hängt je Referenzbild einen LoadImage-Node an und verdrahtet ihn mit allen Zielen; ändert graph. */
@@ -72,7 +149,7 @@ export function coerce(key: string, spec: FieldSpec, raw: ParamValue | undefined
   switch (spec.type) {
     case 'string':
     case 'image':
-      if (typeof raw !== 'string' || raw === '') throw new Error(`${key}: Text erwartet`);
+      if (typeof raw !== 'string' || (raw === '' && !(spec.type === 'string' && spec.optional))) throw new Error(`${key}: Text erwartet`);
       return raw;
     case 'bool':
       if (typeof raw === 'boolean') return raw;
@@ -116,4 +193,12 @@ export function applyParams(
     values[key] = value;
   }
   return { graph, values };
+}
+
+const SAMPLERS = new Set(['KSampler', 'KSamplerAdvanced', 'SamplerCustomAdvanced']);
+export const isSampler = (classType: string | undefined) => SAMPLERS.has(classType ?? '');
+
+/** Sampler im Graphen: je einer ist ein Durchgang mit eigenen Schritten (LTX und Wan haben zwei). */
+export function samplerCount(api: ApiGraph): number {
+  return Object.values(api).filter((n) => isSampler(n.class_type)).length;
 }

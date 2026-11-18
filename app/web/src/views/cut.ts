@@ -213,17 +213,16 @@ export function cutView(onMarks: () => void): Cut {
       const d = s.duration;
       const seek = (x: number) => { player.pause(); player.currentTime = x; };
       inspector.replaceChildren(
-        h('div', { class: 'cut-inspect-head' }, h('strong', {}, t('cut.shot', { n })),
-          h('button', { type: 'button', class: 'button ghost', onclick: () => { s.start = 0; s.end = null; s.speed = 1; save(); select('shot', sel?.i ?? 0); } }, t('cut.whole'))),
-        h('div', { class: 'cut-grid' },
-          slider(t('cut.start'), 0, d, 0.04, s.start, sec, (v) => { s.start = Math.max(0, Math.min(v, (s.end ?? d) - 0.1)); seek(s.start); save(); return s.start; }),
-          slider(t('cut.end'), 0, d, 0.04, s.end ?? d, sec, (v) => {
-            s.end = v >= d - 0.02 ? null : Math.max(v, s.start + 0.1);
-            seek(s.end ?? d);
-            save();
-            return s.end ?? d;
-          })),
+        h('strong', { class: 'cut-inspect-title' }, t('cut.shot', { n })),
+        slider(t('cut.start'), 0, d, 0.04, s.start, sec, (v) => { s.start = Math.max(0, Math.min(v, (s.end ?? d) - 0.1)); seek(s.start); save(); return s.start; }),
+        slider(t('cut.end'), 0, d, 0.04, s.end ?? d, sec, (v) => {
+          s.end = v >= d - 0.02 ? null : Math.max(v, s.start + 0.1);
+          seek(s.end ?? d);
+          save();
+          return s.end ?? d;
+        }),
         segs(t('cut.speed'), SPEEDS, s.speed, (v) => `${v.toLocaleString(lang)}×`, (v) => { s.speed = v; player.playbackRate = v; save(); }),
+        h('button', { type: 'button', class: 'button ghost', onclick: () => { s.start = 0; s.end = null; s.speed = 1; save(); select('shot', sel?.i ?? 0); } }, t('cut.whole')),
       );
       return;
     }
@@ -232,7 +231,7 @@ export function cutView(onMarks: () => void): Cut {
       const dur = slider(t('cut.duration'), 0.1, 2, 0.1, j.duration, sec, (v) => { j.duration = v; save(); });
       dur.classList.toggle('hidden', j.kind === 'cut');
       inspector.replaceChildren(
-        h('div', { class: 'cut-inspect-head' }, h('strong', {}, t('cut.join', { a: i + 1, b: i + 2 }))),
+        h('strong', { class: 'cut-inspect-title' }, t('cut.join', { a: i + 1, b: i + 2 })),
         segs(t('cut.kind'), KINDS, j.kind, (k) => t(KIND_KEY[k]), (k) => { j.kind = k; dur.classList.toggle('hidden', k === 'cut'); save(); }),
         dur,
       );

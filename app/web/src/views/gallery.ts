@@ -14,11 +14,30 @@ export interface Gallery {
   setMarks(marks: Map<string, string>): void;
 }
 
+/** Workflows je Art und Modell für die Filter; was nicht unter video steht, gilt als Bild. */
+export interface GalleryGroups {
+  video: string[];
+  models: { id: string; label: string; workflows: string[] }[];
+}
+
+const FILTER_KEY = 'brennglas.galFilter';
+
+function readFilter(): { kind: string; model: string } {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(FILTER_KEY) ?? '{}');
+    const o = v && typeof v === 'object' ? (v as Record<string, unknown>) : {};
+    return { kind: ['image', 'video'].includes(o.kind as string) ? (o.kind as string) : '', model: typeof o.model === 'string' ? o.model : '' };
+  } catch {
+    return { kind: '', model: '' };
+  }
+}
+
 const FOLDER_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h6l2 2h10v11H3z"/></svg>';
 
 export function gallery(
   onPick: (g: Generation) => void, badges: Map<string, string>, figs: { el: HTMLElement; count: HTMLElement } | null = null,
   onCut: ((g: Generation) => void) | null = null,
+  groups: GalleryGroups = { video: [], models: [] },
 ): Gallery {
   const items = new Map<string, Generation>();
   const tiles = new Map<string, HTMLElement>();
@@ -56,7 +75,44 @@ export function gallery(
   folderBtn.innerHTML = FOLDER_SVG;
   folderBtn.addEventListener('click', () => void api.openFolder(selected ?? undefined).catch(() => {}));
 
+  // Art und Modell: gemerkt über den Neustart, gefiltert im Backend (sonst blieben Seiten fast leer)
+  const opt = (value: string, text: string) => h('option', { value }, text);
+  const kindSel = h('select', { class: 'gal-select' }, opt('', t('gal.allKinds')), opt('image', t('gal.images')), opt('video', t('gal.videos')));
+  const modelSel = h('select', { class: 'gal-select' });
+  const used = new Set<string>();
+  const saved = readFilter();
+  kindSel.value = saved.kind;
+  let modelId = saved.model;
+  function fillModels() {
+    const list = groups.models.filter((m) => m.id === modelId || m.workflows.some((w) => used.has(w)));
+    modelSel.replaceChildren(opt('', t('gal.allModels')), ...list.map((m) => opt(m.id, m.label)));
+    modelSel.value = modelId;
+  }
+  function applyGroups() {
+    const v = groups.video;
+    let wf = groups.models.find((m) => m.id === modelId)?.workflows;
+    let not: string[] | undefined;
+    if (kindSel.value === 'video') wf = wf ? wf.filter((w) => v.includes(w)) : v;
+    if (kindSel.value === 'image') {
+      if (wf) wf = wf.filter((w) => !v.includes(w));
+      else not = v;
+    }
+    filter = { ...filter, workflows: wf, notWorkflows: not };
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify({ kind: kindSel.value, model: modelId }));
+    } catch {
+      // ohne Speicher gilt die Auswahl nur bis zum Neuladen
+    }
+  }
+  fillModels();
+  applyGroups();
+  kindSel.addEventListener('change', () => { applyGroups(); void reload(); });
+  modelSel.addEventListener('change', () => { modelId = modelSel.value; applyGroups(); void reload(); });
+  void api.usedWorkflows().then((list) => { list.forEach((w) => used.add(w)); fillModels(); }).catch(() => {});
+
   const matches = (g: Generation) => {
+    if (filter.workflows && !filter.workflows.includes(g.workflow)) return false;
+    if (filter.notWorkflows?.includes(g.workflow)) return false;
     if (filter.favorite && !g.favorite) return false;
     const q = filter.q?.trim().toLowerCase();
     return !q || g.prompt.toLowerCase().includes(q) || (g.expandedPrompt ?? '').toLowerCase().includes(q);
@@ -170,6 +226,10 @@ export function gallery(
 
   function onEvent(ev: SseEvent) {
     if (ev.type === 'deleted') return remove(ev.id);
+    if (ev.type === 'done' && !used.has(ev.generation.workflow)) {
+      used.add(ev.generation.workflow);
+      fillModels();
+    }
     if (ev.type === 'done') upsert(ev.generation, !tiles.has(ev.generation.id));
     else if (ev.type === 'status' || ev.type === 'error') void refresh(ev.id);
     else if (ev.type === 'favorite') {
@@ -188,7 +248,8 @@ export function gallery(
   }
 
   // Reiter „Bilder | Figuren“; ohne Figuren-Ansicht bleibt die schlichte Überschrift
-  const images = h('div', { class: 'gal-images' }, h('div', { class: 'gal-tools' }, search, favBtn, folderBtn), grid, empty, more);
+  const images = h('div', { class: 'gal-images' }, h('div', { class: 'gal-tools' }, search, favBtn, folderBtn),
+    h('div', { class: 'gal-filters' }, kindSel, modelSel), grid, empty, more);
   const tabImages = h('button', { type: 'button', class: 'gal-tab on' }, t('gal.title'), count);
   const tabFigs = figs ? h('button', { type: 'button', class: 'gal-tab' }, t('fig.title'), figs.count) : null;
   const show = (f: boolean) => {

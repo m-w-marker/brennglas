@@ -37,13 +37,17 @@ if not errorlevel 1 (
   start "Brennglas" cmd /k corepack pnpm dev
 )
 
-rem The backend connects by itself once ComfyUI is up - only wait for the web interface.
+rem Wait for web and backend (the page fails without the backend); ComfyUI is joined later by the backend itself.
+echo Waiting for the web interface and the backend ...
 for /l %%i in (1,1,60) do (
   call :listening 5173
-  if not errorlevel 1 goto open
+  if not errorlevel 1 (
+    call :listening %PORT%
+    if not errorlevel 1 goto open
+  )
   timeout /t 1 /nobreak >nul
 )
-echo Web interface not reachable - check the "Brennglas" window.
+echo Brennglas not reachable - check the "Brennglas" window.
 pause
 exit /b 1
 

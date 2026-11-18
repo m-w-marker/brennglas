@@ -4,6 +4,7 @@
   "short": "SeedVR2",
   "vendor": "ByteDance Seed",
   "order": 9,
+  "recommended": true,
   "modes": {
     "upscale": "seedvr2-upscale",
     "video": "seedvr2-video"

@@ -1,12 +1,26 @@
 import type { Generation, Mode, SseEvent } from '@brennglas/shared';
 import { api, imageUrl, videoUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
-import { t } from '../i18n.ts';
+import { lang, t } from '../i18n.ts';
+import { clock, eta, type Tick } from '../progress.ts';
 import { viewer } from './viewer.ts';
 
 const STAGES: Record<string, Parameters<typeof t>[0]> = {
   TextGenerateV2: 'stage.expand',
   TextGenerate: 'stage.expand',
+  TextGenerateLTX2Prompt: 'stage.expand',
+  TextEncodeQwenImage21: 'stage.encode',
+  KSamplerAdvanced: 'stage.render',
+  LTXVLatentUpsampler: 'stage.upscale',
+  LTXVAudioVAEDecode: 'stage.audio',
+  CreateVideo: 'stage.saveVideo',
+  SaveVideo: 'stage.saveVideo',
+  LTXVPreprocess: 'stage.image',
+  LTXVImgToVideoInplace: 'stage.image',
+  LTXVAddGuide: 'stage.image',
+  WanCameraImageToVideo: 'stage.image',
+  VAEEncodeTiled: 'stage.image',
+  LatentUpscaleModelLoader: 'stage.load',
   CLIPTextEncode: 'stage.encode',
   MiniMaxH3ImageConditioning: 'stage.encode',
   KSampler: 'stage.render',
@@ -96,6 +110,15 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
     const waiting = current !== null && !progress.classList.contains('hidden');
     hint.classList.toggle('hidden', !(waiting && Date.now() - lastEventAt > SLOW_MS));
   }, 5000);
+  // Laufende Uhr seit dem letzten Lebenszeichen: zeigt in Phasen ohne Prozente, dass es weitergeht
+  let base = '';
+  let ticking = false;
+  let first: (Tick & { pass: number | undefined }) | null = null;
+  setInterval(() => {
+    if (!ticking || progress.classList.contains('hidden')) return;
+    const since = Date.now() - lastEventAt;
+    status.textContent = since >= 3000 ? `${base} · ${clock(since)}` : base;
+  }, 1000);
 
   function setCurrent(id: string | null) {
     if (shown?.id !== id) shown = null;
@@ -113,7 +136,9 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
     setCurrent(id);
     setPlayer(null);
     lastEventAt = Date.now();
-    status.textContent = t('res.queued');
+    status.textContent = base = t('res.queued');
+    ticking = true;
+    first = null;
     status.className = 'status';
     setProgress(0, 0, false);
     hideLive();
@@ -123,7 +148,7 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
     const cancel = h('button', { type: 'button', class: 'button ghost danger' }, t('res.cancel'));
     cancel.addEventListener('click', () => {
       cancel.disabled = true;
-      api.cancel(id).catch((e: Error) => { status.textContent = t('res.cancelFail', { msg: e.message }); cancel.disabled = false; });
+      api.cancel(id).catch((e: Error) => { status.textContent = base = t('res.cancelFail', { msg: e.message }); cancel.disabled = false; });
     });
     actions.replaceChildren(cancel);
     chain.classList.add('hidden');
@@ -267,7 +292,7 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
       return;
     }
     if ((ev.type === 'status' && ev.status === 'cancelled') || ev.type === 'error') hideLive();
-    if (ev.type === 'status' && ev.status === 'running') status.textContent = t('res.running');
+    if (ev.type === 'status' && ev.status === 'running') status.textContent = base = t('res.running');
     if (ev.type === 'status' && ev.status === 'cancelled') {
       progress.classList.add('hidden');
       status.textContent = t('res.cancelled');
@@ -277,20 +302,31 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
     if (ev.type === 'progress') {
       const stage = ev.stage ? STAGES[ev.stage] : undefined;
       const label = t(stage ?? 'stage.prepare');
+      const pass = ev.passes ? ` · ${t('res.pass', { v: ev.pass ?? 1, max: ev.passes })}` : '';
+      ticking = true;
       // TextGenerate meldet Tokens bis zum Maximum 8192, endet aber weit davor – kein echter Balken.
       if (ev.stage === 'video') {
-        status.textContent = t('res.frames', { v: ev.value, max: ev.max });
+        base = t('res.frames', { v: ev.value, max: ev.max });
         setProgress(ev.value, ev.max, true);
       } else if (ev.stage === 'encode') {
-        status.textContent = `${t('res.encoding')} …`;
+        base = `${t('res.encoding')} …`;
         setProgress(0, 0, false);
-      } else if (stage === 'stage.render' && ev.max > 0) {
-        status.textContent = `${label} — ${t('res.step', { v: ev.value, max: ev.max })}`;
+      } else if (stage === 'stage.render' && ev.max > 0 && ev.value > 0) {
+        const now = { t: Date.now(), v: ev.value };
+        if (!first || first.pass !== ev.pass || ev.value < first.v) first = { ...now, pass: ev.pass };
+        const e = eta(first, now, ev.max);
+        const rate = e ? ` · ${t('res.eta', { s: (e.perStep / 1000).toLocaleString(lang, { maximumFractionDigits: e.perStep < 10_000 ? 1 : 0 }), left: clock(e.left) })}` : '';
+        base = `${label}${pass} — ${t('res.step', { v: ev.value, max: ev.max })}${rate}`;
         setProgress(ev.value, ev.max, true);
+      } else if (stage === 'stage.render') {
+        // Vor dem ersten Schritt lädt ComfyUI das Modell – oft der längste stille Abschnitt
+        base = `${label}${pass} — ${t('stage.loadModel')} …`;
+        setProgress(0, 0, false);
       } else {
-        status.textContent = (ev.stage === 'TextGenerateV2' || ev.stage === 'TextGenerate') && ev.value > 0 ? `${label} — ${t('res.tokens', { n: ev.value })}` : `${label} …`;
+        base = (ev.stage === 'TextGenerateV2' || ev.stage === 'TextGenerate') && ev.value > 0 ? `${label} — ${t('res.tokens', { n: ev.value })}` : `${label} …`;
         setProgress(0, 0, false);
       }
+      status.textContent = base;
     }
     if (ev.type === 'done') show(ev.generation);
     if (ev.type === 'error') {

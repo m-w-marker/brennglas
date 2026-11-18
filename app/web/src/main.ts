@@ -3,6 +3,7 @@ import type { Generation, ModelInfo } from '@brennglas/shared';
 import { api, subscribe } from './api.ts';
 import { h } from './dom.ts';
 import { lang, setLang, t } from './i18n.ts';
+import { openClaudeHelp } from './views/claude-help.ts';
 import { cutView } from './views/cut.ts';
 import { figures, type Figures } from './views/figures.ts';
 import { gallery, type Gallery } from './views/gallery.ts';
@@ -31,7 +32,7 @@ function pollMemory() {
   api.memory()
     .then((m) => {
       const part = (name: string, x: { used: number; total: number }) => `${name} ${gb(x.used)}/${gb(x.total)} GB`;
-      memory.textContent = [m.vram ? part('VRAM', m.vram) : null, part('RAM', m.ram)].filter(Boolean).join(' · ');
+      memory.textContent = [typeof m.gpu === 'number' ? `GPU ${m.gpu} %` : null, m.vram ? part('VRAM', m.vram) : null, part('RAM', m.ram)].filter(Boolean).join(' · ');
       memory.classList.remove('hidden');
     })
     .catch(() => memory.classList.add('hidden'));
@@ -77,10 +78,24 @@ const cutTab = h('button', { type: 'button', class: 'view-tab' }, t('cut.name'))
 const topbar = h('header', { class: 'topbar' },
   h('div', { class: 'top-left' }, h('div', { class: 'brand' }, 'BRENNGLAS', h('span', {}, t('brand.sub'))),
     h('nav', { class: 'view-tabs' }, genTab, cutTab)),
-  h('div', { class: 'top-right' }, queue.el, memory, freeBtn, langSwitch(), comfy));
+  h('div', { class: 'top-right' }, queue.el, memory, freeBtn,
+    h('button', { type: 'button', class: 'top-btn', onclick: openClaudeHelp }, t('claude.button')), langSwitch(), comfy));
+
+// Mit pnpm dev kann die Oberfläche vor dem Backend da sein: sichtbar warten statt gleich Fehlerseite
+const startData = async () => {
+  for (let s = 1; ; s++) {
+    try {
+      return await Promise.all([api.workflows(), api.models()]);
+    } catch (e) {
+      if (s > 15) throw e;
+      root.replaceChildren(h('p', { class: 'start-wait' }, t('start.wait', { s })));
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+};
 
 try {
-  const [workflows, models] = await Promise.all([api.workflows(), api.models()]);
+  const [workflows, models] = await startData();
   if (workflows.length === 0) throw new Error(t('fatal.noWorkflows'));
 
   const videoWfs = new Set(workflows.filter((w) => w.kind === 'video').map((w) => w.name));
@@ -112,7 +127,14 @@ try {
   showGeneration = (g) => result.show(g);
   figs = figures(workflows, models, (g) => result.show(g), (id) => result.follow(id), (list) => input?.setFigures(list), (id) => input?.useFigure(id));
   // Im Schnitt legt ein Klick auf ein Video es hinein oder nimmt es heraus
-  gal = gallery((g) => (cutOn ? g.video && cut.toggle(g) : result.show(g)), badgeMap, figs, (g) => toCut(g));
+  // Video = Filmmodi, Video-Upscale und Schnitt; alles andere zeigt der Filter als Bild
+  const isWf = (w: string | undefined): w is string => !!w;
+  const groups = {
+    video: [...new Set([...models.flatMap((m) => [m.modes.t2v, m.modes.i2v, m.modes.flf2v]).filter(isWf), ...videoWfs, 'concat'])],
+    models: [...models.map((m) => ({ id: m.id, label: m.short, workflows: Object.values(m.modes).filter(isWf) })),
+      { id: 'concat', label: t('gal.concat'), workflows: ['concat'] }],
+  };
+  gal = gallery((g) => (cutOn ? g.video && cut.toggle(g) : result.show(g)), badgeMap, figs, (g) => toCut(g), groups);
   const showCut = (on: boolean) => {
     cutOn = on;
     // Ausgeblendete Player verstummen, sonst läuft der Ton unsichtbar weiter
@@ -143,6 +165,8 @@ try {
   root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, cut.stage, gal.el)));
   subscribe((ev) => {
     if (ev.type === 'comfy') setComfy(ev.connected);
+    // Startete ComfyUI nach der Seite, war „Dateien vorhanden?" noch unbekannt
+    if (ev.type === 'comfy' && ev.connected) void api.models().then((list) => input?.setModels(list), () => {});
     if (ev.type === 'queue') queue.setCount(ev.remaining);
     queue.onEvent(ev);
     result.onEvent(ev);

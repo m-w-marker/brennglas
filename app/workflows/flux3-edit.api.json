@@ -36,7 +36,7 @@
         0
       ],
       "text": [
-        "22",
+        "55",
         0
       ]
     },
@@ -48,7 +48,7 @@
   "7": {
     "inputs": {
       "model": [
-        "1",
+        "52",
         0
       ],
       "positive": [
@@ -248,7 +248,7 @@
   "27": {
     "inputs": {
       "source": [
-        "22",
+        "55",
         0
       ]
     },
@@ -289,6 +289,95 @@
     "class_type": "ReferenceMultiLatent",
     "_meta": {
       "title": "IN_REFS_EXTRA"
+    }
+  },
+  "50": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "IN_LORA_ON"
+    }
+  },
+  "51": {
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "lora_name": "flux3_consistency.safetensors",
+      "strength_model": 1
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "IN_LORA"
+    }
+  },
+  "52": {
+    "inputs": {
+      "switch": [
+        "50",
+        0
+      ],
+      "on_false": [
+        "1",
+        0
+      ],
+      "on_true": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (LoRA)"
+    }
+  },
+  "53": {
+    "inputs": {
+      "value": ""
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "IN_LORA_TRIGGER"
+    }
+  },
+  "54": {
+    "inputs": {
+      "string_a": [
+        "22",
+        0
+      ],
+      "string_b": [
+        "53",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Prompt + Trigger"
+    }
+  },
+  "55": {
+    "inputs": {
+      "switch": [
+        "50",
+        0
+      ],
+      "on_false": [
+        "22",
+        0
+      ],
+      "on_true": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (Trigger)"
     }
   }
 }

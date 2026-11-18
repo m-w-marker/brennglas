@@ -38,11 +38,14 @@ Recurring characters and products (same person or product in several shots):
    returned sheet against the portrait: face shape and build must match.
 2. Per shot generate the start image with figures=[name] and an edit workflow. For people prefer qwen21-edit: it keeps face shape
    and build, flux3-edit tends to widen faces and bodies. Qwen is non-commercial; for commercial work use flux3-edit (products
-   too), where a close-up portrait helps; h3-edit also works. Prompt only the scene, aspect sets the format, up to 3 figures per
+   too), where a close-up portrait helps. Prompt only the scene, aspect sets the format, up to 3 figures per
    scene, images add further references (a location).
    Do not start from the previous shot here; the figure's sheet keeps the identity, chaining edits drifts.
 3. Check the face with inspect_image against the portrait before animating; regenerate with another seed if it differs.
    Medium and close shots hold the likeness best; in wide shots describe face and hair in the prompt.
+LoRAs: image models have loraOn, lora (only matching files are listed) and loraStrength; the LoRA's trigger word is appended
+automatically (set loraTrigger to override, "" for none). Style LoRAs on Krea 2 and Z-Image; Qwen/FLUX edit offer helper LoRAs
+(Consistency keeps edits pixel-aligned, Outpaint fills gray padding).
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
 const server = new McpServer({ name: 'brennglas', version: '0.4.0' }, { instructions: INSTRUCTIONS });
@@ -61,6 +64,8 @@ function describeField(key: string, s: FieldSpec): Record<string, unknown> {
   if (s.options) out.options = s.options.map((o) => (o.length > 40 || !o ? en(s.optionLabels?.[o]) ?? o : o));
   if (s.optional) out.optional = true;
   if (s.advanced) out.advanced = true;
+  // LoRA: Trigger je Datei aus Katalog/Metadaten – zeigt Claude, welchen Look eine LoRA macht
+  if (s.triggers && Object.keys(s.triggers).length) out.triggers = s.triggers;
   return out;
 }
 

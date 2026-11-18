@@ -26,7 +26,8 @@ export interface ModelFile {
 export function requiredFiles(api: ApiGraph): ModelFile[] {
   const files = new Map<string, ModelFile>();
   for (const node of Object.values(api)) {
-    const loader = LOADERS[node.class_type];
+    // Die wählbare LoRA ist Zubehör: ohne sie läuft das Modell, applyLora nimmt den Loader dann heraus
+    const loader = node._meta?.title === 'IN_LORA' ? undefined : LOADERS[node.class_type];
     const name = loader ? node.inputs[loader.field] : undefined;
     if (loader && typeof name === 'string') files.set(`${loader.folder}/${name}`, { folder: loader.folder, name });
   }

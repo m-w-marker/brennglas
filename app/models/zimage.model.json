@@ -3,9 +3,14 @@
   "name": "Z-Image Turbo",
   "short": "Z-Image",
   "vendor": "Tongyi-MAI (Alibaba)",
-  "order": 4,
+  "order": 3,
+  "recommended": true,
   "modes": {
     "t2i": "zimage-t2i"
+  },
+  "lora": {
+    "key": "layers[._]\\d+[._]attention[._]to_k",
+    "width": 3840
   },
   "license": {
     "name": "Apache License 2.0",

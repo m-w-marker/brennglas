@@ -4,11 +4,11 @@ import { basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { ParamValue } from '@brennglas/shared';
 import { config } from '../config.ts';
-import { addRefs, applyParams, findNodeId, loadWorkflow } from './workflow.ts';
+import { addRefs, applyLora, applyParams, defaultTrigger, findNodeId, loadLoras, loadWorkflow } from './workflow.ts';
 
 const [name, prompt, ...rest] = process.argv.slice(2).filter((a) => a !== '--');
 if (!name || !prompt) {
-  console.error('Aufruf: pnpm comfy:test <workflow> "<prompt>" [feld=wert …]   z. B. h3-edit "mach die Wand blau" image=C:/bild.png');
+  console.error('Aufruf: pnpm comfy:test <workflow> "<prompt>" [feld=wert …]   z. B. flux3-edit "mach die Wand blau" image=C:/bild.png');
   process.exit(2);
 }
 
@@ -35,7 +35,7 @@ try {
   process.exit(1);
 }
 
-const wf = loadWorkflow(config.workflowsDir, name);
+const wf = loadWorkflow(config.workflowsDir, name, loadLoras(config.modelsDir));
 const params: Record<string, ParamValue> = { prompt };
 const refs: string[] = [];
 for (const kv of rest) {
@@ -49,8 +49,10 @@ for (const [key, spec] of Object.entries(wf.map.inputs)) {
   if (spec.type === 'image' && typeof v === 'string') params[key] = await uploadImage(v);
 }
 
+defaultTrigger(wf.map, params);
 const { graph, values } = applyParams(wf, params);
 addRefs(graph, wf.map, await Promise.all(refs.map(uploadImage)));
+applyLora(graph);
 console.log('Parameter:', values);
 
 const res = await comfy('/prompt', {

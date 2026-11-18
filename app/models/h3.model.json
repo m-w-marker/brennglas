@@ -3,7 +3,7 @@
   "name": "MiniMax H3 Image",
   "short": "H3",
   "vendor": "MiniMax",
-  "order": 1,
+  "order": 5,
   "modes": {
     "t2i": "h3-t2i",
     "edit": "h3-edit"

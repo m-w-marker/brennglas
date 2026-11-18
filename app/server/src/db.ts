@@ -258,12 +258,26 @@ export function listGenerations(db: DB, cursor: number | null, limit: number, fi
     where.push("(prompt LIKE ? ESCAPE '!' OR expanded_prompt LIKE ? ESCAPE '!')");
     args.push(like, like);
   }
+  const marks = (list: string[]) => list.map(() => '?').join(', ');
+  if (filter.workflows) {
+    where.push(`workflow IN (${marks(filter.workflows)})`); // leeres IN () liefert in SQLite nichts
+    args.push(...filter.workflows);
+  }
+  if (filter.notWorkflows?.length) {
+    where.push(`workflow NOT IN (${marks(filter.notWorkflows)})`);
+    args.push(...filter.notWorkflows);
+  }
   const rows = db
     .prepare(`SELECT rowid, * FROM generations WHERE ${where.join(' AND ')} ORDER BY rowid DESC LIMIT ?`)
     .all(...args, limit + 1) as GenRow[];
   const more = rows.length > limit;
   const page = rows.slice(0, limit);
   return { items: page.map(toApi), nextCursor: more ? (page.at(-1)?.rowid ?? null) : null };
+}
+
+/** Workflows, die in der Galerie vorkommen – die Galerie bietet nur dafür Modell-Filter an. */
+export function usedWorkflows(db: DB): string[] {
+  return (db.prepare('SELECT DISTINCT workflow FROM generations ORDER BY workflow').all() as { workflow: string }[]).map((r) => r.workflow);
 }
 
 export function listUnfinished(db: DB): GenRow[] {

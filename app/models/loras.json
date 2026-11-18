@@ -1,0 +1,144 @@
+{
+  "krea2_darkbrush.safetensors": {
+    "model": "krea2",
+    "label": "Dark Brush",
+    "trigger": "monochrome ink wash style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_darkbrush.safetensors"
+  },
+  "krea2_dotmatrix.safetensors": {
+    "model": "krea2",
+    "label": "Dot Matrix",
+    "trigger": "monochrome stippling style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_dotmatrix.safetensors"
+  },
+  "krea2_kidsdrawing.safetensors": {
+    "model": "krea2",
+    "label": "Kids Drawing",
+    "trigger": "naive expressive sketch style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_kidsdrawing.safetensors"
+  },
+  "krea2_neondrip.safetensors": {
+    "model": "krea2",
+    "label": "Neon Drip",
+    "trigger": "textured abstract style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_neondrip.safetensors"
+  },
+  "krea2_rainywindow.safetensors": {
+    "model": "krea2",
+    "label": "Rainy Window",
+    "trigger": "rainy window style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_rainywindow.safetensors"
+  },
+  "krea2_retroanime.safetensors": {
+    "model": "krea2",
+    "label": "Retro Anime",
+    "trigger": "purple retro anime style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_retroanime.safetensors"
+  },
+  "krea2_softwatercolor.safetensors": {
+    "model": "krea2",
+    "label": "Soft Watercolor",
+    "trigger": "art deco watercolor style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_softwatercolor.safetensors"
+  },
+  "krea2_sunsetblur.safetensors": {
+    "model": "krea2",
+    "label": "Sunset Blur",
+    "trigger": "ethereal motion blur style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_sunsetblur.safetensors"
+  },
+  "krea2_vintagetarot.safetensors": {
+    "model": "krea2",
+    "label": "Vintage Tarot",
+    "trigger": "vintage tarot style",
+    "url": "https://huggingface.co/Comfy-Org/Krea-2/resolve/main/loras/krea2_vintagetarot.safetensors"
+  },
+  "zimage_awportrait.safetensors": {
+    "model": "zimage",
+    "label": "AWPortrait",
+    "url": "https://huggingface.co/Shakker-Labs/AWPortrait-Z/resolve/main/AWPortrait-Z.safetensors"
+  },
+  "zimage_realism.safetensors": {
+    "model": "zimage",
+    "label": "Realism",
+    "trigger": "Realism",
+    "url": "https://huggingface.co/suayptalha/Z-Image-Turbo-Realism-LoRA/resolve/main/pytorch_lora_weights.safetensors"
+  },
+  "zimage_technicolor.safetensors": {
+    "model": "zimage",
+    "label": "Technically Color",
+    "trigger": "t3chnic4lly",
+    "url": "https://huggingface.co/renderartist/Technically-Color-Z-Image-Turbo/resolve/main/Technically_Color_Z_Image_Turbo_v1_renderartist_2000.safetensors"
+  },
+  "zimage_classicpainting.safetensors": {
+    "model": "zimage",
+    "label": "Classic Painting",
+    "url": "https://huggingface.co/renderartist/Classic-Painting-Z-Image-Turbo-LoRA/resolve/main/Classic_Painting_Z_Image_Turbo_v1_renderartist_1750.safetensors"
+  },
+  "zimage_pixelart.safetensors": {
+    "model": "zimage",
+    "label": "Pixel Art",
+    "trigger": "Pixel art style.",
+    "url": "https://huggingface.co/tarn59/pixel_art_style_lora_z_image_turbo/resolve/main/pixel_art_style_z_image_turbo.safetensors"
+  },
+  "zimage_3drender.safetensors": {
+    "model": "zimage",
+    "label": "3D Render",
+    "trigger": "3D Render Style, 3DRenderAF",
+    "url": "https://huggingface.co/artificialguybr/3DRenderStyle-REDMOND-ZIMAGE/resolve/main/%5BZImage.Turbo%5D3DRenderStyle_Redmond.safetensors"
+  },
+  "zimage_clay.safetensors": {
+    "model": "zimage",
+    "label": "Clay Animation",
+    "trigger": "Clay animation, Clay.",
+    "url": "https://huggingface.co/artificialguybr/ClayAnimation-Redmond-ZIMAGE/resolve/main/%5BZImage.Turbo%5DClayAnimation_Redmond.safetensors"
+  },
+  "zimage_saturdaymorning.safetensors": {
+    "model": "zimage",
+    "label": "Saturday Morning",
+    "trigger": "cartoon, saturd4ym0rning",
+    "url": "https://huggingface.co/renderartist/Saturday-Morning-Z-Image-Turbo/resolve/main/Saturday_Morning_Z_Image_Turbo_v1_renderartist_1500.safetensors"
+  },
+  "qwen21_consistency.safetensors": {
+    "model": "qwen21",
+    "modes": [
+      "edit"
+    ],
+    "label": "Consistency",
+    "url": "https://huggingface.co/ausboss/Qwen-Image-2.1-Consistency-LoRA/resolve/main/qwen-image-2.1-consistency.safetensors"
+  },
+  "qwen21_outfitswap.safetensors": {
+    "model": "qwen21",
+    "modes": [
+      "edit"
+    ],
+    "label": "Outfit Swap",
+    "url": "https://huggingface.co/ausboss/Qwen-Image-2.1-Outfit-Swap-Consistency-LoRA/resolve/main/qwen-image-2.1-outfit-swap.safetensors"
+  },
+  "qwen21_restore.safetensors": {
+    "model": "qwen21",
+    "modes": [
+      "edit"
+    ],
+    "label": "Restore",
+    "trigger": "Restore the photo: remove blur, noise and compression artifacts and recover sharp, natural detail, keeping the same composition, people and colors.",
+    "url": "https://huggingface.co/ausboss/Qwen-Image-2.1-Restore-LoRA/resolve/main/qwen-image-2.1-restore.safetensors"
+  },
+  "flux3_consistency.safetensors": {
+    "model": "flux3",
+    "modes": [
+      "edit"
+    ],
+    "label": "Consistency",
+    "url": "https://huggingface.co/ausboss/FLUX-3-Image-Klein-Consistency-LoRA/resolve/main/flux-3-image-klein-consistency.safetensors"
+  },
+  "flux3_outpaint.safetensors": {
+    "model": "flux3",
+    "modes": [
+      "edit"
+    ],
+    "label": "Outpaint",
+    "trigger": "Outpaint the image: replace the solid gray areas with a seamless continuation of the scene, keeping the existing picture unchanged.",
+    "url": "https://huggingface.co/ausboss/FLUX-3-Image-Klein-Outpaint-LoRA/resolve/main/flux-3-image-klein-outpaint.safetensors"
+  }
+}

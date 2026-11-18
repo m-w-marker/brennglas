@@ -3,10 +3,14 @@
   "name": "Qwen-Image-2.1 Turbo",
   "short": "Qwen 2.1",
   "vendor": "Alibaba Qwen",
-  "order": 3,
+  "order": 2,
   "modes": {
     "t2i": "qwen21-t2i",
     "edit": "qwen21-edit"
+  },
+  "lora": {
+    "key": "transformer_blocks[._]\\d+[._]attn[._]to_k",
+    "width": 4096
   },
   "license": {
     "name": "Qwen Research License",

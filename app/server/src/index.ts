@@ -3,18 +3,20 @@ import { join } from 'node:path';
 import Fastify from 'fastify';
 import { config } from './config.ts';
 import { ComfyClient } from './comfy/client.ts';
-import { loadWorkflow, type Workflow } from './comfy/workflow.ts';
+import { loadLoras, loadWorkflow, type Workflow } from './comfy/workflow.ts';
 import { adoptLegacyDb, openDb } from './db.ts';
 import { Jobs } from './jobs.ts';
+import { Loras } from './loras.ts';
 import { loadModels } from './models.ts';
 import { registerApi } from './routes/api.ts';
 import { seedFigures, seedSamples } from './samples.ts';
 import { VideoJobs } from './video.ts';
 
+const loras = loadLoras(config.modelsDir);
 const workflows = new Map<string, Workflow>();
 for (const f of readdirSync(config.workflowsDir).filter((n) => n.endsWith('.map.json'))) {
   const name = f.slice(0, -'.map.json'.length);
-  workflows.set(name, loadWorkflow(config.workflowsDir, name));
+  workflows.set(name, loadWorkflow(config.workflowsDir, name, loras));
 }
 
 const models = loadModels(config.modelsDir, workflows);
@@ -38,12 +40,15 @@ try {
   console.warn(`Beispiel-Figuren übersprungen: ${(e as Error).message}`);
 }
 const comfy = new ComfyClient(config.comfyUrl);
-const jobs = new Jobs(db, comfy, workflows, config.dataDir);
+// grenze: nur der Standardordner, extra_model_paths.yaml unbeachtet – bei Bedarf dort mitlesen
+const loraDir = config.comfyDir ? join(config.comfyDir, 'ComfyUI', 'models', 'loras') : null;
+const loraLib = new Loras(loras, models.map((m) => m.spec), loraDir, () => comfy.listModels('loras'));
+const jobs = new Jobs(db, comfy, workflows, config.dataDir, () => loraLib.refresh(workflows.values()));
 const videoWf = [...workflows.values()].find((w) => w.map.kind === 'video');
 const video = videoWf ? new VideoJobs(db, comfy, videoWf, config.dataDir) : null;
 
 const app = Fastify({ logger: { level: 'warn' } });
-registerApi(app, { db, jobs, video, workflows, models, listFolder: (f) => comfy.listModels(f), dataDir: config.dataDir });
+registerApi(app, { db, jobs, video, workflows, models, loras: loraLib, listFolder: (f) => comfy.listModels(f), dataDir: config.dataDir });
 
 comfy.connect();
 await app.listen({ host: config.host, port: config.port });

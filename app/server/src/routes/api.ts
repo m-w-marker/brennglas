@@ -3,22 +3,23 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import type { FigureKind, FigureRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { ClaudeConfig, FigureKind, FigureRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
 import { concatClips, frameAt, type ConcatOptions } from '../clips.ts';
 import { PlanError, TRANSITIONS, type CutFormat, type Join, type ShotEdit, type Transition } from '../concat-plan.ts';
 import {
   deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
-  refsOf, setFavorite, toApi, type DB,
+  refsOf, setFavorite, toApi, usedWorkflows, type DB,
 } from '../db.ts';
 import { sheetPrompt } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
 import { cropRegion, saveInput, saveOutput } from '../images.ts';
 import { BadRequest, type Jobs } from '../jobs.ts';
 import { missingFiles, type Model } from '../models.ts';
+import type { Loras } from '../loras.ts';
 import type { VideoJobs } from '../video.ts';
 import { allowedHost, allowedWrite } from '../origin.ts';
-import { config } from '../config.ts';
+import { APP_DIR, config } from '../config.ts';
 
 interface Deps {
   db: DB;
@@ -26,6 +27,7 @@ interface Deps {
   video: VideoJobs | null;
   workflows: Map<string, Workflow>;
   models: Model[];
+  loras: Loras;
   listFolder: (folder: string) => Promise<string[]>;
   dataDir: string;
 }
@@ -71,7 +73,7 @@ function parseImages(raw: unknown): ImageSource[] | undefined {
   });
 }
 
-export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, models, listFolder, dataDir }: Deps): void {
+export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, models, loras, listFolder, dataDir }: Deps): void {
   app.addHook('onRequest', async (req, reply) => {
     if (!allowedHost(req.headers.host, config.host)) return reply.code(403).send({ error: 'Unbekannter Host abgelehnt' });
     if (!allowedWrite(req.method, req.headers.origin, req.headers.host)) {
@@ -84,11 +86,26 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     return models.map(({ spec, downloads }) => ({ ...spec, missing: missing?.get(spec.id) ?? null, downloads }));
   });
 
-  app.get('/api/workflows', async (): Promise<WorkflowInfo[]> =>
-    [...workflows.values()].map(({ map }) => ({
+  app.get('/api/workflows', async (): Promise<WorkflowInfo[]> => {
+    // Hängt ComfyUI, lädt die Seite nach 2 s trotzdem – mit der LoRA-Auswahl vom letzten Mal
+    await Promise.race([loras.refresh(workflows.values()), new Promise((r) => setTimeout(r, 2000))]);
+    return [...workflows.values()].map(({ map }) => ({
       name: map.name, label: map.label, submit: map.submit, kind: map.kind, refs: map.refs?.max ?? 0, refToken: map.refs?.token,
       inputs: { ...map.job, ...Object.fromEntries(Object.entries(map.inputs).filter(([, s]) => !s.hidden)) },
-    })));
+    }));
+  });
+
+  // Hilfe „Mit Claude verbinden“: process.execPath ist das Node, das gerade läuft (auch das portable des Installers)
+  app.get('/api/claude-config', async (): Promise<ClaudeConfig> => ({ node: process.execPath, script: join(APP_DIR, 'mcp', 'src', 'index.ts') }));
+
+  // Beim Öffnen der Auswahl: eigene LoRAs, die seit dem Laden der Seite dazugekommen sind
+  app.get<{ Params: { workflow: string } }>('/api/loras/:workflow', async (req, reply) => {
+    const wf = workflows.get(req.params.workflow);
+    const spec = wf && Object.values(wf.map.inputs).find((x) => x.loras);
+    if (!wf || !spec) return reply.code(404).send({ error: 'Workflow ohne LoRA-Auswahl' });
+    await loras.refresh([wf]);
+    return { options: spec.options ?? [], optionLabels: spec.optionLabels ?? {}, triggers: spec.triggers ?? {} };
+  });
 
   // Rohdaten statt multipart: der Browser schickt die Datei direkt als Body, ohne Zusatzpaket.
   app.addContentTypeParser(/^image\//, { parseAs: 'buffer', bodyLimit: MAX_UPLOAD }, (_req, body, done) => done(null, body));
@@ -177,11 +194,15 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
   });
 
   app.get('/api/generations', async (req) => {
-    const q = req.query as { cursor?: string; limit?: string; q?: string; fav?: string };
+    const q = req.query as { cursor?: string; limit?: string; q?: string; fav?: string; wf?: string; nowf?: string };
     const cursor = q.cursor ? Number(q.cursor) : null;
     const limit = Math.min(Math.max(Number(q.limit) || 40, 1), 200);
-    return listGenerations(db, Number.isFinite(cursor) ? cursor : null, limit, { q: q.q, favorite: q.fav === '1' });
+    const list = (s: string | undefined) => (typeof s === 'string' ? s.split(',').filter(Boolean) : undefined);
+    return listGenerations(db, Number.isFinite(cursor) ? cursor : null, limit,
+      { q: q.q, favorite: q.fav === '1', workflows: list(q.wf), notWorkflows: list(q.nowf) });
   });
+
+  app.get('/api/generations/workflows', async () => usedWorkflows(db));
 
   app.get('/api/generations/:id', async (req, reply) => {
     const row = getRow(db, (req.params as { id: string }).id);

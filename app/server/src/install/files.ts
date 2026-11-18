@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebStream } from 'node:stream/web';
 import type { ModelSpec } from '@brennglas/shared';
+import { loadLoras } from '../comfy/workflow.ts';
 import { loadDownloads, requiredFiles } from '../models.ts';
 
 export interface CatalogFile {
@@ -19,10 +20,11 @@ export interface CatalogModel {
   files: CatalogFile[];
 }
 
-/** Modelle mit ihren Dateien, abgelesen aus den Loadern der Workflows (wie models.ts), dazu die Links. */
+/** Modelle mit ihren Dateien, abgelesen aus den Loadern der Workflows (wie models.ts), dazu die Links und Grund-LoRAs. */
 export function catalog(appDir: string): CatalogModel[] {
   const json = (p: string): unknown => JSON.parse(readFileSync(p, 'utf8'));
   const links = loadDownloads(join(appDir, 'models'));
+  const loras = loadLoras(join(appDir, 'models'));
   return readdirSync(join(appDir, 'models')).filter((f) => f.endsWith('.model.json'))
     .map((f) => json(join(appDir, 'models', f)) as ModelSpec)
     .sort((a, b) => a.order - b.order)
@@ -34,6 +36,11 @@ export function catalog(appDir: string): CatalogModel[] {
           const key = `${d.folder}/${d.name}`;
           files.set(key, { key, folder: d.folder, name: d.name, url: links[key]?.url ?? null, gated: links[key]?.gated === true });
         }
+      }
+      // Grund-LoRAs kommen ohne Abfrage mit (Entscheidung 18.11.2026, zusammen ~3 GB)
+      for (const [name, e] of Object.entries(loras)) {
+        const key = `loras/${name}`;
+        if (e.model === spec.id && e.url) files.set(key, { key, folder: 'loras', name, url: e.url, gated: false });
       }
       return { spec, files: [...files.values()] };
     });

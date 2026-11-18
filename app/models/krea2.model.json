@@ -3,9 +3,13 @@
   "name": "Krea 2 Turbo",
   "short": "Krea 2",
   "vendor": "Krea",
-  "order": 2,
+  "order": 1,
   "modes": {
     "t2i": "krea2-t2i"
+  },
+  "lora": {
+    "key": "transformer_blocks[._]\\d+[._]attn[._]to_k",
+    "width": 6144
   },
   "license": {
     "name": "Krea 2 Community License",

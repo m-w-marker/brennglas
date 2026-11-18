@@ -18,6 +18,8 @@ export interface FieldSpec {
   /** Anzeige im Formular; ohne Angabe der Schlüssel. */
   label?: Text;
   placeholder?: Text;
+  /** Erklärung, die immer unter dem Feld steht (der Platzhalter verschwindet, sobald etwas drinsteht). */
+  hint?: Text;
   /** Feste Stufen statt freier Zahl, z. B. Fast Draft / Balanced / High Quality. */
   presets?: { label: Text; value: number }[];
   /** Einheit hinter Zahlen und Stufen, z. B. MP. */
@@ -27,8 +29,16 @@ export interface FieldSpec {
   advanced?: boolean;
   /** Setzt nur das Backend, nicht im Formular. */
   hidden?: boolean;
-  /** Bild darf fehlen: das Backend nimmt den Node samt Kanten aus dem Graphen. */
+  /** Bild darf fehlen (das Backend nimmt den Node samt Kanten heraus), Text darf leer sein. */
   optional?: boolean;
+  /** Auswahl = LoRAs dieses Modells aus `models/loras.json`, füllt das Backend beim Laden (→ plan_loras). */
+  loras?: string;
+  /** Trigger-Wort je Option; das Backend hängt es an den Prompt, solange die LoRA an ist. */
+  triggers?: Record<string, string>;
+  /** Nur sichtbar, solange dieses Bool-Feld an ist. */
+  showIf?: string;
+  /** Wird beim Wechsel dieses Felds (einer LoRA-Auswahl) mit deren Trigger vorbelegt. */
+  fillFrom?: string;
 }
 
 export interface InputSpec extends FieldSpec {
@@ -86,7 +96,11 @@ export interface ModelSpec {
   short: string;
   vendor: string;
   order: number;
+  /** Im Installer als Empfehlung markiert, per „rec“ wählbar. */
+  recommended?: boolean;
   modes: Partial<Record<Mode, string>>;
+  /** Erkennung eigener LoRAs: ein Schlüssel passt auf key (RegExp), seine lora_A/down-Matrix ist width breit. */
+  lora?: { key: string; width: number };
   license: ModelLicense;
 }
 
@@ -99,9 +113,17 @@ export interface QueueItem {
 }
 
 /** Speicher laut ComfyUI /system_stats, in Bytes; vram null ohne GPU. */
+/** Pfade für den MCP-Eintrag in Claude Desktop / Claude Code: das laufende Node und der MCP-Server. */
+export interface ClaudeConfig {
+  node: string;
+  script: string;
+}
+
 export interface MemoryStats {
   vram: { used: number; total: number } | null;
   ram: { used: number; total: number };
+  /** GPU-Last in %, null ohne nvidia-smi. */
+  gpu?: number | null;
 }
 
 export interface ModelInfo extends ModelSpec {
@@ -208,6 +230,10 @@ export interface FigureRequest {
 export interface GenerationFilter {
   q?: string;
   favorite?: boolean;
+  /** Nur diese Workflows (Modell- oder Art-Filter der Galerie); leer = nichts. */
+  workflows?: string[];
+  /** Diese Workflows ausblenden (Art „Bilder“ = alles außer Video). */
+  notWorkflows?: string[];
 }
 
 export interface UploadResult {
@@ -224,7 +250,7 @@ export interface Health {
 
 export type SseEvent =
   | { type: 'status'; id: string; status: GenStatus }
-  | { type: 'progress'; id: string; value: number; max: number; stage: string | null }
+  | { type: 'progress'; id: string; value: number; max: number; stage: string | null; pass?: number; passes?: number }
   /** Zwischenbild des Samplers als data-URL, nur für den laufenden Job. */
   | { type: 'preview'; id: string; url: string }
   | { type: 'done'; generation: Generation }
