@@ -395,7 +395,6 @@ input[type='range'] { flex: 1; accent-color: var(--accent); }
 .fig-chip button { padding: 0 6px; border: 0; background: none; color: var(--muted); cursor: pointer; }
 .fig-chip button:hover { color: var(--err); }
 .fig-add-select { width: auto; flex: 1; min-width: 160px; }
-.fig-aspect { width: auto; }
 
 /* Schnittplatz */
 .cut-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }

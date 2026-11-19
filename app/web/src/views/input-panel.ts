@@ -35,6 +35,8 @@ interface ImageField {
 /** Figuren für eine neue Szene: leere Fläche im Format, je Figur Porträt + Blatt als Referenz. → plan_referenz */
 interface FigurePicker {
   el: HTMLElement;
+  /** Format der leeren Fläche, eigenes Feld unter dem Figuren-Block, nur mit gewählten Figuren sichtbar. */
+  format: HTMLElement;
   get(): string[];
   aspect(): number;
   set(ids: string[], aspect?: number): void;
@@ -192,7 +194,9 @@ function boolField(key: string, spec: FieldSpec): Field {
 
 const refToken = (token: string, n: number) => token.replace('{n}', String(n)).replace('{i}', String(n - 1));
 
-const ASPECTS: [string, number][] = [['16:9', 16 / 9], ['9:16', 9 / 16], ['1:1', 1], ['4:3', 4 / 3], ['3:4', 3 / 4], ['3:2', 3 / 2], ['2:3', 2 / 3], ['21:9', 21 / 9]];
+// Beschriftung wie das Format-Feld bei Text zu Bild
+const ASPECTS: [string, number][] = [['16:9 (Widescreen)', 16 / 9], ['9:16 (Portrait Widescreen)', 9 / 16], ['1:1 (Square)', 1],
+  ['4:3 (Standard)', 4 / 3], ['3:4 (Portrait Standard)', 3 / 4], ['3:2 (Photo)', 3 / 2], ['2:3 (Portrait Photo)', 2 / 3], ['21:9 (Ultrawide)', 21 / 9]];
 
 function figurePicker(token: string, onChange: (n: number) => void): FigurePicker {
   let list: Figure[] = [];
@@ -204,10 +208,10 @@ function figurePicker(token: string, onChange: (n: number) => void): FigurePicke
     if (add.value) chosen = [...chosen, add.value];
     render();
   });
-  const aspect = h('select', { class: 'fig-aspect' }, ...ASPECTS.map(([l, v]) => h('option', { value: String(v) }, l)));
+  const aspect = h('select', {}, ...ASPECTS.map(([l, v]) => h('option', { value: String(v) }, l)));
   const hint = h('small', { class: 'opt-hint' });
-  const row = h('div', { class: 'row hidden' }, h('span', { class: 'lbl' }, t('scene.format')), aspect);
-  const el = h('div', { class: 'field hidden' }, h('span', { class: 'lbl' }, t('scene.figures')), h('div', { class: 'fig-pick' }, chips, add), row, hint);
+  const format = h('label', { class: 'hidden' }, h('span', { class: 'lbl' }, t('scene.format')), aspect);
+  const el = h('div', { class: 'field hidden' }, h('span', { class: 'lbl' }, t('scene.figures')), h('div', { class: 'fig-pick' }, chips, add), hint);
 
   function render() {
     const ready = list.filter((f) => f.sheet?.status === 'done');
@@ -222,7 +226,7 @@ function figurePicker(token: string, onChange: (n: number) => void): FigurePicke
     add.value = '';
     add.classList.toggle('hidden', chosen.length >= 3 || rest.length === 0);
     el.classList.toggle('hidden', ready.length === 0);
-    row.classList.toggle('hidden', chosen.length === 0);
+    format.classList.toggle('hidden', chosen.length === 0);
     const names = chosen.map((id) => list.find((f) => f.id === id)?.name).join(', ');
     hint.textContent = chosen.length ? t('scene.hint', { names, next: refToken(token, 2 + 2 * chosen.length) }) : t('scene.pick');
     onChange(chosen.length);
@@ -230,6 +234,7 @@ function figurePicker(token: string, onChange: (n: number) => void): FigurePicke
   render();
   return {
     el,
+    format,
     get: () => [...chosen],
     aspect: () => Number(aspect.value),
     set: (ids, a) => {
@@ -380,7 +385,7 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
     if (spec.type === 'image') {
       const field = imageBar(key, spec, 1 + wf.refs, wf.refToken ?? '', setError);
       image = { key, field };
-      if (figures) section.append(figures.el);
+      if (figures) section.append(figures.el, figures.format);
       section.append(field.el);
       continue;
     }

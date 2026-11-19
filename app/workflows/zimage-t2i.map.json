@@ -44,7 +44,7 @@
       "type": "float",
       "default": 2,
       "min": 0.1,
-      "max": 4,
+      "max": 3,
       "label": {
         "de": "Größe",
         "en": "Size"
@@ -61,7 +61,7 @@
         },
         {
           "label": "High Quality",
-          "value": 4
+          "value": 3
         }
       ]
     },
