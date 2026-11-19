@@ -152,6 +152,8 @@ The table is a short summary, not legal advice. Read the license yourself.
 | SeedVR2 7B | upscaling | [Apache 2.0](https://huggingface.co/ByteDance-Seed/SeedVR2-7B) | Yes. |
 | Gemma 4 E2B, Qwen 3.5 9B | prompt assistant | [Apache 2.0](https://huggingface.co/Qwen/Qwen3.5-9B) | Yes. |
 
+Missing a model you want? [Open an issue](https://github.com/m-w-marker/brennglas/issues) and tell me which one.
+
 ## Requirements
 
 - Windows 10 or 11. Other systems may work with `pnpm dev`, but are not tested.

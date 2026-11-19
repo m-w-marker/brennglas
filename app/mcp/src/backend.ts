@@ -34,6 +34,8 @@ export const backend = {
   createFigure: (req: FigureRequest) => call<Figure>('/api/figures', json(req)),
   deleteFigure: (id: string) => call<{ ok: true }>(`/api/figures/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   generation: (id: string) => call<Generation>(`/api/generations/${encodeURIComponent(id)}`),
+  cancel: (id: string) => call<{ ok: true }>(`/api/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
+  remove: (id: string) => call<{ ok: true }>(`/api/generations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   gallery: (limit: number, q?: string) => call<Page<Generation>>(`/api/generations?${new URLSearchParams({ limit: String(limit), ...(q ? { q } : {}) })}`),
   async crop(id: string, r: { x: number; y: number; w: number; h: number }): Promise<string> {
     const q = new URLSearchParams({ x: String(r.x), y: String(r.y), w: String(r.w), h: String(r.h) });
