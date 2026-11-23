@@ -323,7 +323,7 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
         base = `${label}${pass} — ${t('stage.loadModel')} …`;
         setProgress(0, 0, false);
       } else {
-        base = (ev.stage === 'TextGenerateV2' || ev.stage === 'TextGenerate') && ev.value > 0 ? `${label} — ${t('res.tokens', { n: ev.value })}` : `${label} …`;
+        base = (ev.stage === 'TextGenerateV2' || ev.stage === 'TextGenerate') && ev.value > 0 ? `${label} — ${t('res.tokens', { n: ev.value, max: ev.max })}` : `${label} …`;
         setProgress(0, 0, false);
       }
       status.textContent = base;

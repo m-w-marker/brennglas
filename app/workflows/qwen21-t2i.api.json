@@ -118,7 +118,7 @@
         0
       ],
       "on_true": [
-        "25",
+        "53",
         0
       ]
     },
@@ -157,7 +157,7 @@
         "20",
         0
       ],
-      "max_length": 4096,
+      "max_length": 8192,
       "sampling_mode": "on",
       "sampling_mode.temperature": 1,
       "sampling_mode.top_k": 20,
@@ -383,6 +383,40 @@
     "class_type": "ComfySwitchNode",
     "_meta": {
       "title": "Switch (Trigger)"
+    }
+  },
+  "52": {
+    "inputs": {
+      "string": [
+        "25",
+        0
+      ],
+      "substring": " ",
+      "case_sensitive": true
+    },
+    "class_type": "StringContains",
+    "_meta": {
+      "title": "PE geliefert?"
+    }
+  },
+  "53": {
+    "inputs": {
+      "switch": [
+        "52",
+        0
+      ],
+      "on_false": [
+        "20",
+        0
+      ],
+      "on_true": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (PE leer → eigener Prompt)"
     }
   }
 }

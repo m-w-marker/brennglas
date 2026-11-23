@@ -22,12 +22,13 @@ const SHEET_LOOK = 'Natural studio lighting, detailed textures, sharp focus, cle
 
 /** Blatt per Edit: Bild 1 die Vorlage der Art, Bild 2 Porträt oder Packshot, danach `views` weitere Fotos derselben Figur;
  *  detail = Kleidung bzw. Details, die das Foto nicht zeigt. Stil kommt aus dem Porträt. → plan_figurenblatt */
-export function sheetPrompt(kind: FigureKind, token: string, detail?: string, views = 0): string {
+export function sheetPrompt(kind: FigureKind, token: string, detail?: string, views = 0, template = true): string {
   const tpl = imageToken(token, 1);
   const ref = imageToken(token, 2);
   const noun = kind === 'person' ? 'character' : kind;
   const more = Array.from({ length: views }, (_, i) => imageToken(token, 3 + i));
   const further = more.length ? ` ${more.join(', ')} ${more.length > 1 ? 'show' : 'shows'} further views of the same ${noun}.` : '';
+  if (!template) return freeSheetPrompt(kind, tpl, ref, further, detail);
   const place = `Use ${tpl} strictly for the placement of the four views on a clean white background`;
   const style = `in the same style as ${ref}`;
   if (kind === 'product') {
@@ -50,6 +51,30 @@ export function sheetPrompt(kind: FigureKind, token: string, detail?: string, vi
     + `2) full body back view, 3) medium shot from the waist up in three-quarter (45-degree) view, cropped by the bottom edge, `
     + `4) close-up of the head and shoulders with the face turned slightly to the right, the shoulders `
     + `continuing out of the bottom edge. Keep the identity, facial features, hair and body build from ${ref} consistent across all views.`
+    + `${further}${detail ? ` The character is wearing ${detail}.` : ''} ${SHEET_LOOK}`;
+}
+
+/** Ohne Vorlage: Bild 1 ist eine weiße Fläche, Lage und Größe der Felder stehen nur im Text (Person: Variante A des Benchmarks). */
+function freeSheetPrompt(kind: FigureKind, canvas: string, ref: string, further: string, detail?: string): string {
+  const fill = `Use ${canvas} as an empty white canvas and fill it with`;
+  if (kind === 'product') {
+    return `${fill} a product reference sheet of the product from ${ref}, in the same style as ${ref}. Four views side by side from `
+      + `left to right, each filling one quarter of the width: 1) front view, 2) three-quarter (45-degree) view, 3) back view, `
+      + `4) large close-up of a detail that is clearly visible in ${ref}, such as its material, a seam or a fitting. Keep the shape, `
+      + `proportions, colours and materials exactly as in ${ref}.${further}${detail ? ` Details not visible in ${ref}: ${detail}.` : ''} ${SHEET_LOOK}`;
+  }
+  if (kind === 'creature') {
+    return `${fill} a creature reference sheet of the creature from ${ref}, in the same style as ${ref}, as a 2 × 2 grid of equal `
+      + `cells: 1) top left, full body front view, 2) top right, full body side view in exact profile facing right, 3) bottom left, `
+      + `full body back view, 4) bottom right, head close-up in three-quarter view. Keep the anatomy, body shape, colours and markings `
+      + `from ${ref} consistent across all views.${further}${detail ? ` Details not visible in ${ref}: ${detail}.` : ''} ${SHEET_LOOK}`;
+  }
+  return `${fill} a character reference sheet of the character from ${ref}, in the same style as ${ref}. `
+    + `Four views side by side from left to right, each filling one quarter of the width and the full height of the canvas: `
+    + `1) full body frontal view from head to feet, 2) full body back view from head to feet, `
+    + `3) medium shot from the waist up in three-quarter (45-degree) view, larger, cropped by the bottom edge, `
+    + `4) close-up of the head and shoulders with the face turned slightly to the right, largest, the shoulders continuing out of the bottom edge. `
+    + `Keep the identity, facial features, hair, body build and clothing from ${ref} consistent across all views.`
     + `${further}${detail ? ` The character is wearing ${detail}.` : ''} ${SHEET_LOOK}`;
 }
 

@@ -1,4 +1,4 @@
-import { MAX_EXTRA_VIEWS } from '@brennglas/shared';
+import { MAX_EXTRA_VIEWS, sheetTemplateDefault } from '@brennglas/shared';
 import type { Figure, FigureKind, FigureSheetRequest, Generation, ImageSource, ModelInfo, SseEvent, WorkflowInfo } from '@brennglas/shared';
 import { api, imageUrl, refUrl } from '../api.ts';
 import { h } from '../dom.ts';
@@ -170,8 +170,11 @@ export function figures(
     const sheet = slot(t('fig.sheetSlot'), stale);
     // FLUX übernimmt Hautoberfläche und Eigenschaftswörter wörtlich, Blätter streuen stark (gemessen 23.11.2026)
     const fluxNote = h('p', { class: 'lic-note' }, t('fig.fluxHint'));
+    const template = h('input', { type: 'checkbox' });
+    const editOf = () => editors.find((m) => m.id === model.value)?.modes.edit ?? '';
     const modelRows = h('div', {},
       h('label', {}, h('span', { class: 'lbl' }, t('model.label')), model), fluxNote,
+      h('label', { class: 'check', title: t('fig.templateHint') }, t('fig.template'), template),
       h('label', {}, outfitLbl, outfit),
       h('span', { class: 'lbl' }, t('fig.extra')), h('div', { class: 'fig-slots' }, ...extra.map((s) => s.el)));
     const viewRows = h('div', {}, h('p', { class: 'lic-note' }, t('fig.viewsHint')), h('div', { class: 'fig-slots' }, ...views.map((s) => s.el)));
@@ -187,10 +190,13 @@ export function figures(
       fluxNote.classList.toggle('hidden', k !== 'person' || model.value !== 'flux3');
       stale();
     };
-    kind.addEventListener('change', () => { pick(); sync(); });
+    const templateDefault = () => { template.checked = sheetTemplateDefault(editOf()); };
+    kind.addEventListener('change', () => { pick(); templateDefault(); sync(); });
     way.addEventListener('change', sync);
-    model.addEventListener('change', sync);
+    model.addEventListener('change', () => { templateDefault(); sync(); });
     outfit.addEventListener('input', stale);
+    template.addEventListener('change', stale);
+    templateDefault();
 
     const show = (g: Generation) => {
       if (g.id !== sheetId) return;
@@ -237,6 +243,7 @@ export function figures(
         const more = extra.map((s) => s.get()).filter((s): s is ImageSource => !!s);
         if (more.length) req.extra = more;
         if (outfit.value.trim()) req.outfit = outfit.value.trim();
+        req.template = template.checked;
       } else if (way.value === 'views') {
         const all = views.map((s) => s.get());
         if (all.some((s) => !s)) return void (err.textContent = t('fig.viewsMissing'));

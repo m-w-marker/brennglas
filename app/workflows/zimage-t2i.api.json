@@ -176,7 +176,7 @@
         "41",
         0
       ],
-      "max_length": 512,
+      "max_length": 4096,
       "sampling_mode": "on",
       "sampling_mode.temperature": 0.7,
       "sampling_mode.top_k": 64,
@@ -184,7 +184,7 @@
       "sampling_mode.min_p": 0.05,
       "sampling_mode.repetition_penalty": 1.05,
       "sampling_mode.seed": 0,
-      "thinking": false,
+      "thinking": true,
       "use_default_template": true
     },
     "class_type": "TextGenerate",
@@ -229,7 +229,7 @@
         0
       ],
       "on_true": [
-        "40",
+        "62",
         0
       ]
     },
@@ -346,6 +346,40 @@
     "class_type": "ComfySwitchNode",
     "_meta": {
       "title": "Switch (Trigger)"
+    }
+  },
+  "61": {
+    "inputs": {
+      "string": [
+        "40",
+        0
+      ],
+      "substring": " ",
+      "case_sensitive": true
+    },
+    "class_type": "StringContains",
+    "_meta": {
+      "title": "PE geliefert?"
+    }
+  },
+  "62": {
+    "inputs": {
+      "switch": [
+        "61",
+        0
+      ],
+      "on_false": [
+        "20",
+        0
+      ],
+      "on_true": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (PE leer → eigener Prompt)"
     }
   }
 }

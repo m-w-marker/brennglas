@@ -204,7 +204,7 @@
         0
       ],
       "on_true": [
-        "16",
+        "57",
         0
       ]
     },
@@ -333,6 +333,40 @@
     "class_type": "ComfySwitchNode",
     "_meta": {
       "title": "Switch (Trigger)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "string": [
+        "16",
+        0
+      ],
+      "substring": " ",
+      "case_sensitive": true
+    },
+    "class_type": "StringContains",
+    "_meta": {
+      "title": "PE geliefert?"
+    }
+  },
+  "57": {
+    "inputs": {
+      "switch": [
+        "56",
+        0
+      ],
+      "on_false": [
+        "19",
+        0
+      ],
+      "on_true": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (PE leer → eigener Prompt)"
     }
   }
 }

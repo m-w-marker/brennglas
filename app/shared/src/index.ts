@@ -231,6 +231,9 @@ export const SHEET_PANELS: Record<FigureKind, readonly SheetPanel[]> = {
 /** Weitere Fotos derselben Figur als Referenzen neben dem Porträt. */
 export const MAX_EXTRA_VIEWS = 4;
 
+/** Blatt auf der Vorlage oder frei auf Weiß; FLUX übernahm Kopf- und Stoffformen der Vorlage (Benchmark 23.11.2026, plan_figurenblatt). */
+export const sheetTemplateDefault = (workflow: string): boolean => workflow !== 'flux3-edit';
+
 /** Gleichbleibende Figur oder gleichbleibendes Produkt: das Porträt ist Referenz 1 des Blatt-Jobs. → plan_referenz */
 export interface Figure {
   id: string;
@@ -251,6 +254,8 @@ export interface FigureSheetRequest {
   workflow: string;
   /** Person: Kleidung in allen Ansichten · Kreatur und Produkt: Details, die das Foto nicht zeigt (z. B. die Rückseite). */
   outfit?: string;
+  /** Mit Vorlage (Raster aus Puppen) oder frei auf weißer Fläche; fehlt es, gilt sheetTemplateDefault. */
+  template?: boolean;
   /** Weitere Fotos derselben Figur als Referenzen, höchstens MAX_EXTRA_VIEWS. */
   extra?: ImageSource[];
   /** Ein Foto je Feld, alle vier in der Reihenfolge von SHEET_PANELS: wird nur zusammengesetzt, kein Modell-Lauf. */

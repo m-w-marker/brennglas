@@ -583,7 +583,7 @@
     0
    ],
    "on_true": [
-    "247",
+    "605",
     0
    ]
   },
@@ -856,6 +856,40 @@
   "class_type": "StringConcatenate",
   "_meta": {
    "title": "Prompt + look"
+  }
+ },
+ "604": {
+  "inputs": {
+   "string": [
+    "247",
+    0
+   ],
+   "substring": " ",
+   "case_sensitive": true
+  },
+  "class_type": "StringContains",
+  "_meta": {
+   "title": "PE geliefert?"
+  }
+ },
+ "605": {
+  "inputs": {
+   "switch": [
+    "604",
+    0
+   ],
+   "on_false": [
+    "603",
+    0
+   ],
+   "on_true": [
+    "247",
+    0
+   ]
+  },
+  "class_type": "ComfySwitchNode",
+  "_meta": {
+   "title": "Switch (PE leer → eigener Prompt)"
   }
  }
 }

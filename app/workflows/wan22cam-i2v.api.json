@@ -222,7 +222,7 @@
     0
    ],
    "on_true": [
-    "19",
+    "75",
     0
    ]
   },
@@ -574,6 +574,40 @@
   "class_type": "PreviewAny",
   "_meta": {
    "title": "OUT_PROMPT"
+  }
+ },
+ "74": {
+  "inputs": {
+   "string": [
+    "19",
+    0
+   ],
+   "substring": " ",
+   "case_sensitive": true
+  },
+  "class_type": "StringContains",
+  "_meta": {
+   "title": "PE geliefert?"
+  }
+ },
+ "75": {
+  "inputs": {
+   "switch": [
+    "74",
+    0
+   ],
+   "on_false": [
+    "11",
+    0
+   ],
+   "on_true": [
+    "19",
+    0
+   ]
+  },
+  "class_type": "ComfySwitchNode",
+  "_meta": {
+   "title": "Switch (PE leer → eigener Prompt)"
   }
  }
 }

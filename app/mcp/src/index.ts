@@ -62,7 +62,7 @@ Edit strength (denoise, 0.8 to 1): 1 is the free edit, below that the edit start
 perspective. Around 0.9 turns a 3D render into a photo without rebuilding it; below 0.85 hardly anything changes.
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
-const server = new McpServer({ name: 'brennglas', version: '0.8.2' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'brennglas', version: '0.8.3' }, { instructions: INSTRUCTIONS });
 
 const text = (t: string): CallToolResult => ({ content: [{ type: 'text', text: t }] });
 const fail = (e: unknown): CallToolResult => ({ content: [{ type: 'text', text: (e as Error).message }], isError: true });
@@ -239,16 +239,17 @@ server.registerTool('create_figure', {
         + 'creature: front, side, back, head close-up · product: front, 45°, back, detail'),
     sheet: z.string().optional().describe('A finished sheet (own collage) taken as it is instead of rendering'),
     workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people and creatures (non-commercial), flux3-edit for products, the other one if that is not installed'),
+    template: z.boolean().optional().describe('Render on the grey mannequin template (fixed grid) or freely on white. Default: with template for qwen21-edit, without for flux3-edit (FLUX copies the template shapes)'),
     wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the sheet; if it is not done yet, call wait with the returned id'),
   },
-}, async ({ name, kind, portrait, outfit, extra_views, views, sheet, workflow, wait_seconds }) => {
+}, async ({ name, kind, portrait, outfit, extra_views, views, sheet, workflow, template, wait_seconds }) => {
   try {
     // Vorgabe wie im Web-Dialog: das bevorzugte Modell nur, wenn es installiert ist, sonst das andere
     const prefer = kind === 'product' ? ['flux3-edit', 'qwen21-edit'] : ['qwen21-edit', 'flux3-edit'];
     const installed = new Set((await backend.models()).filter((m) => m.missing?.length === 0).map((m) => m.modes.edit));
     const wf = workflow ?? prefer.find((w) => installed.has(w)) ?? prefer[0] as string;
     const f = await backend.createFigure({
-      name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}),
+      name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}), ...(template === undefined ? {} : { template }),
       ...(extra_views?.length ? { extra: await Promise.all(extra_views.map(toSource)) } : {}),
       ...(views ? { views: await Promise.all(views.map(toSource)) } : {}),
       ...(sheet ? { sheet: await toSource(sheet) } : {}),

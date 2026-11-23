@@ -137,7 +137,7 @@
         0
       ],
       "on_true": [
-        "25",
+        "84",
         0
       ]
     },
@@ -176,7 +176,7 @@
         "20",
         0
       ],
-      "max_length": 4096,
+      "max_length": 16384,
       "sampling_mode": "on",
       "sampling_mode.temperature": 1,
       "sampling_mode.top_k": 20,
@@ -472,6 +472,40 @@
     "class_type": "SetFirstSigma",
     "_meta": {
       "title": "Start im Original"
+    }
+  },
+  "83": {
+    "inputs": {
+      "string": [
+        "25",
+        0
+      ],
+      "substring": " ",
+      "case_sensitive": true
+    },
+    "class_type": "StringContains",
+    "_meta": {
+      "title": "PE geliefert?"
+    }
+  },
+  "84": {
+    "inputs": {
+      "switch": [
+        "83",
+        0
+      ],
+      "on_false": [
+        "20",
+        0
+      ],
+      "on_true": [
+        "25",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch (PE leer → eigener Prompt)"
     }
   }
 }

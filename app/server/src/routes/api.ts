@@ -4,7 +4,7 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmS
 import { join } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import sharp from 'sharp';
-import { MAX_EXTRA_VIEWS, SHEET_PANELS } from '@brennglas/shared';
+import { MAX_EXTRA_VIEWS, SHEET_PANELS, SHEET_SIZE, sheetTemplateDefault } from '@brennglas/shared';
 import type { ClaudeConfig, FigureKind, FigureSheetRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
 import { concatClips, frameAt, probe, type ConcatOptions } from '../clips.ts';
@@ -217,9 +217,12 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       return jobs.importImage(png, { workflow: map.name, prompt: 'Blatt aus Fotos', refs });
     }
     const outfit = typeof body.outfit === 'string' ? body.outfit.trim().slice(0, 200) : '';
-    const tpl = await saveInput(dataDir, readFileSync(templateFile(config.samplesDir, kind, map.name)));
+    const template = typeof body.template === 'boolean' ? body.template : sheetTemplateDefault(map.name);
+    const canvas = template ? readFileSync(templateFile(config.samplesDir, kind, map.name))
+      : await sharp({ create: { ...SHEET_SIZE, channels: 3, background: '#ffffff' } }).png().toBuffer();
+    const tpl = await saveInput(dataDir, canvas);
     return jobs.create({
-      workflow: map.name, prompt: sheetPrompt(kind, map.refs.token, outfit, extra.length),
+      workflow: map.name, prompt: sheetPrompt(kind, map.refs.token, outfit, extra.length, template),
       params: SHEET_MEGAPIXELS[map.name] ? { megapixels: SHEET_MEGAPIXELS[map.name] as number } : {},
       images: [{ kind: 'upload', id: tpl.inputId }, ...refs],
     });
