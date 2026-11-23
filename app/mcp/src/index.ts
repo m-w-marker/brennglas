@@ -1,9 +1,10 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { MAX_EXTRA_VIEWS } from '@brennglas/shared';
 import type { FieldSpec, Figure, Generation, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { z } from 'zod';
-import { BASE, backend, en, resolveEnum, toSource } from './backend.ts';
+import { BASE, backend, en, resolveEnum, toSource, toVideo } from './backend.ts';
 
 // Regie-Anleitung: Claude bekommt sie in jedem Projekt, sobald der Server verbunden ist
 const INSTRUCTIONS = `Brennglas renders images and videos locally on the user's GPU; every result shows up live in the user's gallery.
@@ -33,7 +34,7 @@ Known LTX limits and what helps:
 - Faces in wide shots have few pixels and lose likeness: prefer medium/close shots, or 1080p for wide shots.
 - For an exact camera path use Wan Fun Camera (no sound, max 720p) and add sound via the music track.
 Recurring characters and products (same person or product in several shots):
-1. Use an existing one from figures, or create_figure from a photo with the face clearly visible, or a packshot (any gallery id
+1. Use an existing one from figures, or create_figure (person, creature or product) from a photo with the face clearly visible, or a packshot (any gallery id
    or file; make one with text to image first if needed). Name the clothing in outfit; check the
    returned sheet against the portrait: face shape and build must match.
 2. Per shot generate the start image with figures=[name] and an edit workflow. For people prefer qwen21-edit: it keeps face shape
@@ -43,12 +44,25 @@ Recurring characters and products (same person or product in several shots):
    Do not start from the previous shot here; the figure's sheet keeps the identity, chaining edits drifts.
 3. Check the face with inspect_image against the portrait before animating; regenerate with another seed if it differs.
    Medium and close shots hold the likeness best; in wide shots describe face and hair in the prompt.
+Layout to video (ltx25layout-l2v), when the user has a 3D layout (grey clay viewport or simple boxes from Max, Blender, Unreal):
+1. The layout video (params.layout: file path or gallery id, 24 fps) sets camera, placement and motion exactly; people may be
+   simple dummies (box body, sphere head). Length follows the layout (snapped to 8k+1 frames, at most 10 s).
+2. The first frame (images[0]) sets the look: ask the user for their clean render of the shot's frame 0 (they have a
+   renderer). Only without one build it from the layout's first frame with qwen21-edit, naming every shape by its place and
+   what it becomes, each dummy as one person; a generic "the figures become people" turns lamps and balls into people too.
+   Never use the grey frame itself as first frame (the result stays grey). Mention nothing that is not modelled: whatever the
+   edit invents does not follow the layout and flickers or vanishes in the video. Use megapixels=4 for the edit.
+   When you build the layout yourself (e.g. in Blender): only the heads are smooth spheres (lamps as drums, plants faceted),
+   smooth by angle instead of fully smooth, ambient occlusion in the first frame, render it at about 4 MP.
+3. Prompt: one or two sentences describing the finished shot; do not write "clay", "3D" or "render". The result is silent.
 LoRAs: image models have loraOn, lora (only matching files are listed) and loraStrength; the LoRA's trigger word is appended
 automatically (set loraTrigger to override, "" for none). Style LoRAs on Krea 2 and Z-Image; Qwen/FLUX edit offer helper LoRAs
 (Consistency keeps edits pixel-aligned, Outpaint fills gray padding).
+Edit strength (denoise, 0.8 to 1): 1 is the free edit, below that the edit starts from the original and keeps layout and
+perspective. Around 0.9 turns a 3D render into a photo without rebuilding it; below 0.85 hardly anything changes.
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
-const server = new McpServer({ name: 'brennglas', version: '0.5.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'brennglas', version: '0.8.2' }, { instructions: INSTRUCTIONS });
 
 const text = (t: string): CallToolResult => ({ content: [{ type: 'text', text: t }] });
 const fail = (e: unknown): CallToolResult => ({ content: [{ type: 'text', text: (e as Error).message }], isError: true });
@@ -62,6 +76,8 @@ function describeField(key: string, s: FieldSpec): Record<string, unknown> {
   if (s.max !== undefined) out.max = s.max;
   if (s.presets) out.presets = s.presets.map((p) => `${en(p.label)}=${p.value}`);
   if (s.options) out.options = s.options.map((o) => (o.length > 40 || !o ? en(s.optionLabels?.[o]) ?? o : o));
+  if (s.hint) out.hint = en(s.hint);
+  if (s.type === 'video') out.hint = 'gallery id of a video or absolute path of a local mp4, webm or mov file';
   if (s.optional) out.optional = true;
   if (s.advanced) out.advanced = true;
   // LoRA: Trigger je Datei aus Katalog/Metadaten – zeigt Claude, welchen Look eine LoRA macht
@@ -172,7 +188,8 @@ server.registerTool('generate', {
     const p: Record<string, ParamValue> = {};
     for (const [k, v] of Object.entries(params ?? {})) {
       const spec = wf.inputs[k];
-      p[k] = spec?.type === 'enum' && typeof v === 'string' ? resolveEnum(spec, v) : v;
+      p[k] = spec?.type === 'enum' && typeof v === 'string' ? resolveEnum(spec, v)
+        : spec?.type === 'video' && typeof v === 'string' ? await toVideo(v) : v;
     }
     const sources = await Promise.all((images ?? []).map(toSource));
     const figs = figures?.length ? (await resolveFigures(figures)).map((f) => f.id) : undefined;
@@ -205,24 +222,37 @@ server.registerTool('figures', {
 
 server.registerTool('create_figure', {
   title: 'Create a character or product',
-  description: 'Saves a recurring person or product for consistent shots: renders a reference sheet (four views) from a portrait or packshot '
-    + 'and returns its preview. The face should be clearly visible; with flux3-edit a close-up works best. Takes about 30 to 90 s. '
-    + 'Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
+  description: 'Saves a recurring character, creature or product for consistent shots: renders a reference sheet (four views in a fixed '
+    + 'grid, in the style of the portrait) and returns its preview. The face should be clearly visible; with flux3-edit a close-up works '
+    + 'best. Takes about 30 to 90 s. Instead of rendering, views (one photo per panel) or sheet (a finished sheet) take real photos '
+    + 'as they are. Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
   inputSchema: {
     name: z.string().min(1).max(60).describe('Short name used in prompts, e.g. "Mara"'),
-    kind: z.enum(['person', 'product']).default('person').describe('person = character with face and outfit, product = object or packshot'),
-    portrait: z.string().describe('Gallery id, "upload:…" ref or absolute path of the portrait or packshot'),
-    outfit: z.string().max(200).optional().describe('Person: clothing for the full body view · product: details the photo does not show'),
-    workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people (non-commercial), flux3-edit for products, the other one if that is not installed'),
+    kind: z.enum(['person', 'creature', 'product']).default('person')
+      .describe('person = human-like character (also cartoon or humanoid monster), creature = animal or being without human shape, product = object or packshot'),
+    portrait: z.string().describe('Gallery id, "upload:…" ref or absolute path of the portrait or packshot; scenes use it next to the sheet'),
+    outfit: z.string().max(200).optional().describe('Person: clothing in every view · creature and product: details the photo does not show. Fill it whenever the portrait misses parts (legs, shoes, the back), otherwise the model invents them'),
+    extra_views: z.array(z.string()).max(MAX_EXTRA_VIEWS).optional()
+      .describe(`Up to ${MAX_EXTRA_VIEWS} more photos of the same figure in the same outfit (side view, close-up), used as references while rendering`),
+    views: z.array(z.string()).length(4).optional()
+      .describe('One photo per panel instead of rendering, placed unchanged. person: full body front, full body back, medium shot 45°, head close-up · '
+        + 'creature: front, side, back, head close-up · product: front, 45°, back, detail'),
+    sheet: z.string().optional().describe('A finished sheet (own collage) taken as it is instead of rendering'),
+    workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people and creatures (non-commercial), flux3-edit for products, the other one if that is not installed'),
     wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the sheet; if it is not done yet, call wait with the returned id'),
   },
-}, async ({ name, kind, portrait, outfit, workflow, wait_seconds }) => {
+}, async ({ name, kind, portrait, outfit, extra_views, views, sheet, workflow, wait_seconds }) => {
   try {
     // Vorgabe wie im Web-Dialog: das bevorzugte Modell nur, wenn es installiert ist, sonst das andere
-    const prefer = kind === 'person' ? ['qwen21-edit', 'flux3-edit'] : ['flux3-edit', 'qwen21-edit'];
+    const prefer = kind === 'product' ? ['flux3-edit', 'qwen21-edit'] : ['qwen21-edit', 'flux3-edit'];
     const installed = new Set((await backend.models()).filter((m) => m.missing?.length === 0).map((m) => m.modes.edit));
     const wf = workflow ?? prefer.find((w) => installed.has(w)) ?? prefer[0] as string;
-    const f = await backend.createFigure({ name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}) });
+    const f = await backend.createFigure({
+      name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}),
+      ...(extra_views?.length ? { extra: await Promise.all(extra_views.map(toSource)) } : {}),
+      ...(views ? { views: await Promise.all(views.map(toSource)) } : {}),
+      ...(sheet ? { sheet: await toSource(sheet) } : {}),
+    });
     const g = await waitFor(f.sheetId, wait_seconds);
     const failed = g.status === 'error' || g.status === 'cancelled';
     // Gescheitertes Blatt: Figur wieder weg, sonst blockiert sie den Namen

@@ -149,6 +149,7 @@ export function coerce(key: string, spec: FieldSpec, raw: ParamValue | undefined
   switch (spec.type) {
     case 'string':
     case 'image':
+    case 'video':
       if (typeof raw !== 'string' || (raw === '' && !(spec.type === 'string' && spec.optional))) throw new Error(`${key}: Text erwartet`);
       return raw;
     case 'bool':

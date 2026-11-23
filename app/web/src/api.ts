@@ -1,4 +1,4 @@
-import type { ClaudeConfig, Figure, FigureRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { ClaudeConfig, Figure, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Der Typ kommt aus der Windows-Registry und ist uneinheitlich (.aac = audio/vnd.dlna.adts); die Endung entscheidet. */
 function audioType(file: File): string {
@@ -53,6 +53,9 @@ export const api = {
   figures: () => fetch('/api/figures').then((r) => json<Figure[]>(r)),
   createFigure: (req: FigureRequest) =>
     fetch('/api/figures', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<Figure>(r)),
+  /** Vorschau: Blatt rechnen, ohne schon eine Figur anzulegen. */
+  figureSheet: (req: FigureSheetRequest) =>
+    fetch('/api/figures/sheet', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(req) }).then((r) => json<{ sheetId: string }>(r)),
   deleteFigure: (id: string) => fetch(`/api/figures/${id}`, { method: 'DELETE' }).then((r) => json<{ ok: true }>(r)),
   /** Musik für den Schnitt; die Antwort ist der Pfad, den concat als music nimmt. */
   uploadAudio: (file: File) =>

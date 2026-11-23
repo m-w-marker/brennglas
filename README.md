@@ -2,99 +2,100 @@
 
 <p align="center"><b>
 <a href="#setup">Setup</a> &nbsp;·&nbsp;
-<a href="#start">Start</a> &nbsp;·&nbsp;
-<a href="#requirements">Requirements</a> &nbsp;·&nbsp;
-<a href="#model-files">Model files</a> &nbsp;·&nbsp;
+<a href="#layout-to-video">Layout to video</a> &nbsp;·&nbsp;
 <a href="#claude-as-your-director">Claude as your director</a> &nbsp;·&nbsp;
 <a href="#models">Models and licenses</a> &nbsp;·&nbsp;
-<a href="#sample-images">Sample images</a>
+<a href="#model-files">Model files</a>
 </b></p>
 
 **Ask Claude for a spot. Get a cut clip, rendered on your own GPU.**
 
 [![A day with Mara: the same woman in five shots, directed by Claude over MCP](screenshots/mara.webp)](screenshots/mara.mp4)
 
-*A day with Mara, 23 seconds, the same woman in five shots. Claude put the saved character into five new scenes with FLUX 3 Klein, checked faces and hands, animated the shots with LTX-2.5 and cut them with fades. No training, no face swap. Click for the MP4 with sound.*
+*The same woman in five shots: Claude placed a saved character in new scenes, animated and cut them. No training, no face swap.*
 
 [![A 16 second spot for a made up ceramics brand, directed by Claude over MCP](screenshots/spot.webp)](screenshots/spot.mp4)
 
-*A 16 second spot for a made up ceramics brand, from a short request. Three shots of the blue vase, cut with fades, logo and end card. Click for the MP4 with sound.*
+*A 16 second spot from a two line request, with logo and end card.*
 
-Brennglas is a local web app for open image and video models.
-ComfyUI renders everything on your own GPU.
-One user, one machine, no login.
-It is also an MCP server, so Claude can direct whole clips for you, see [Claude as your director](#claude-as-your-director).
+[![A finished café shot, bottom right the grey Blender layout it follows: same camera move, the two mannequins became a guest and a barista](screenshots/layout.webp)](screenshots/layout.mp4)
+
+*A grey Blender layout (bottom right) became the finished shot. Camera and people follow it frame by frame.*
+
+Brennglas is a local web app for open image and video models. ComfyUI renders everything on your GPU, no cloud, no login.
+It is also an MCP server, so Claude can direct whole clips for you.
 
 <table>
 <tr>
-<td width="50%"><img src="screenshots/edit.png" alt="Edit with reference images"><br><b>Edit with reference images.</b> Before/after slider and an edit chain you can step back through.</td>
-<td width="50%"><img src="screenshots/video.png" alt="Image to video with camera preset"><br><b>Image to video with sound.</b> Camera presets and looks for LTX-2.5, every shot in the same gallery.</td>
+<td width="50%"><img src="screenshots/edit.png" alt="Edit with reference images"><br><b>Edit with reference images</b>, before/after slider, edit chains.</td>
+<td width="50%"><img src="screenshots/video.png" alt="Image to video with camera preset"><br><b>Image to video with sound</b>, camera presets and looks.</td>
 </tr>
 </table>
 
 ## What it does
 
-- Text to image and image editing with up to 16 input images.
-- Consistent characters and products: save a person or product once (portrait and a reference sheet with four views), then put up to three of them into any new scene.
-- Text to video, image to video, and first plus last frame video, with sound.
-- Camera presets and looks for video, and real camera paths with Wan Fun Camera.
-- Upscaling of images to 8K, and of render sequences or video files (MP4, MOV …, sound is kept) to UHD 4K.
-- A prompt assistant that turns short notes (in any language) into a good English prompt.
-- Live preview while rendering, before/after slider, remix, edit chains, queue.
-- A gallery with search, favorites and series.
-- A simple video editor: put shots from the gallery in order, trim them, change their speed, pick a transition per cut
-  (cut, dissolve, dip to black or white, wipe, slide), fade in and out, add music, logo and end card, preview it in seconds
-  and render MP4 or WebM.
-- Claude can drive Brennglas as a director over MCP: plan shots, render, check details, cut the clip.
-- Interface in English and German.
+- Text to image and editing with up to 16 reference images.
+- Consistent characters and products: save one once, put up to three into any scene.
+- Text to video, image to video, first plus last frame, with sound. Camera presets, or exact camera paths with Wan Fun Camera.
+- [Layout to video](#layout-to-video): a grey 3D animation sets camera and motion, one rendered frame sets the look.
+- Upscaling of images to 8K, and of videos and render sequences to 4K.
+- A video editor for cuts, transitions, music, logo and end card.
+- A prompt assistant that writes good English prompts from short notes in any language.
+- Gallery with search and series, live preview, queue. English and German interface.
+
+## Setup
+
+You need Windows 10 or 11, an NVIDIA GPU (tested with 24 GB) and about 10 GB plus 5 to 50 GB per model.
+
+1. `git clone https://github.com/m-w-marker/brennglas.git` or download the ZIP. Pick a drive with free space, not your user folder.
+2. Double click `install.bat`. It sets up Node.js, ComfyUI, optionally ffmpeg, and the models you pick (nothing system wide).
+3. Double click `start.bat`. The gallery starts with eight sample images; Remix shows how each was made.
+
+Run `install.bat` again to add models. **Updating:** `git pull` (or unpack the new ZIP over the old folder), then `install.bat` once. Your gallery and settings stay.
+
+<details><summary>Manual setup, and what install.bat adds</summary>
+
+In a Command Prompt with Node.js 22.18 or newer:
+
+```
+cd brennglas\app
+corepack pnpm install
+copy .env.example .env
+```
+
+Set `COMFY_DIR` in `app\.env` to your portable ComfyUI folder (the one with `python_embeded`), then get the [model files](#model-files).
+Start ComfyUI, run `pnpm dev` in `app` and open http://127.0.0.1:5173.
+
+`install.bat` uses your portable [ComfyUI](https://github.com/comfyanonymous/ComfyUI) 0.45 or newer or downloads it (about 2 GB), adds
+ffmpeg ([FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds), GPL, about 90 MB) for cutting and video upscaling, and on request
+[VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) and [WAS Node Suite](https://github.com/WASasquatch/was-node-suite-comfyui)
+for render sequences. For gated models it opens the Hugging Face page and asks once for a read token.
+
+</details>
+
+## Layout to video
+
+For 3D artists: block out a shot, keep it grey, get the finished film.
+
+1. Render the viewport animation as MP4 at 24 fps. People are mannequins with a ball head.
+2. Render frame 0 of the same camera in your usual renderer. It sets the look.
+3. Drop both into the tab "Layout to video" and describe the shot in a sentence.
+
+LTX-2.5 with Lightricks' Layout-To-Render IC-LoRA, ComfyUI core nodes only. Five seconds at 720p take about a minute on 24 GB.
+No renderer? Claude can turn the first layout frame into a photo, as in the clip above.
 
 ## Claude as your director
 
-Brennglas comes with an MCP server. With it, Claude works your GPU like a small film crew.
-Ask for a spot, and Claude:
-
-1. plans a shot list with subject, camera move and look for each shot,
-2. renders a start image per shot and checks hands, faces and products at full resolution,
-3. animates each shot with LTX-2.5 or Wan Fun Camera,
-4. looks at every result and redoes weak shots,
-5. cuts the clip with one music track, your logo and an end card.
-
-Every image and video shows up live in your gallery, so you can watch and step in.
-
-Try something like this:
+With the built-in MCP server Claude plans a shot list, renders and checks start images, animates the shots, redoes weak ones and cuts the clip with music, logo and end card. Everything shows up live in your gallery. Try:
 
 > Make a 15 second spot for our ceramics brand HALDE. Three shots of the blue vase in a calm Japandi living room, golden hour light, our logo in the corner and an end card.
 
-The ceramics spot at the top of this page came from this request.
+**Connect Claude Desktop:** `install.bat` prints a ready config block at the end. Paste it in Settings → Developer → Edit Config, then restart Claude Desktop completely (also from the tray). Brennglas must be running.<br>
+**Claude Code:** open the Brennglas folder, `.mcp.json` registers the server.
 
-When the same person or product appears in several shots, Claude saves it as a character first and renders every start image from it, so the face stays the same. The Mara spot at the top was made that way.
+<details><summary>Config by hand, tools, other clients</summary>
 
-The tools Claude gets:
-
-- `generate` starts an image or video job with any model and option.
-- `wait` waits for a job and returns a preview.
-- `inspect_image` shows a region of a result at full resolution.
-- `figures` and `create_figure` list and save characters and products; `generate` puts them into new scenes.
-- `last_frame` takes the last frame of a video as the start of the next shot.
-- `concat` cuts shots into one clip with cuts, fades, dips to black or white, wipes or slides, music, logo and end card, as MP4 or WebM.
-  You can open the result in the editor to fine-tune it.
-- `list_models`, `gallery` and `enhance_prompt` read the models, browse results and write prompts.
-
-The server also hands Claude a short directing guide with the known limits of the video models and what helps.
-
-### Connect
-
-Brennglas must be running (`start.bat`), the MCP server talks to it.
-
-**Claude Desktop app**
-
-1. At the end, `install.bat` prints a ready block with the right paths for your computer. Copy it.
-2. In Claude Desktop open Settings, Developer, **Edit Config**. This opens `claude_desktop_config.json`.
-3. Paste the block. If other servers are already listed under `mcpServers`, add only the `"brennglas": { ... }` entry, separated by a comma.
-4. Quit Claude Desktop completely, also from the tray icon next to the clock, and start it again.
-5. The Brennglas tools now show up under the tools icon in the chat box. Ask for an image or a spot. Claude asks once per tool before it uses it.
-
-Writing the block by hand? It looks like this. Replace `<brennglas folder>` with your path and write every backslash twice:
+Replace `<brennglas folder>` with your path, every backslash twice. With your own Node.js 22.18 or newer, `"node"` works as `command`.
 
 ```json
 {
@@ -107,39 +108,16 @@ Writing the block by hand? It looks like this. Replace `<brennglas folder>` with
 }
 ```
 
-`command` is the portable Node.js that `install.bat` set up. If you installed Node.js 22.18 or newer yourself, `"node"` works too.
-If the tools do not show up, Settings, Developer shows the server status and its log. Most often a path has single backslashes, or Brennglas is not running.
+Tools: `generate`, `wait`, `inspect_image` (full resolution crops), `figures` and `create_figure` (characters), `last_frame`, `concat` (cut, transitions, music, logo, end card), `list_models`, `gallery`, `enhance_prompt`. The server also gives Claude a short directing guide.
 
-**Claude Code:** open the Brennglas folder. The file `.mcp.json` registers the server. Confirm it once. It needs Node.js 22.18 or newer in your `PATH`.
+If the tools do not show up, Settings → Developer shows the log; usually a path has single backslashes or Brennglas is not running.
+Other local (stdio) MCP clients such as Codex CLI or LM Studio should work but are not tested. Brennglas only listens on your own computer.
 
-- **Other MCP clients** that start local (stdio) servers should work the same way, for example Codex CLI or LM Studio. They are not tested.
-  The client must pass images from tool results to the model. Small local models handle single images well, whole clips less so.
-
-Clients that only connect to servers on the internet cannot reach Brennglas. It only listens on your own computer.
-
-## Sample images
-
-The gallery starts with these eight sample images, all made with Brennglas. Remix any of them to see prompt and settings.
-
-<table>
-<tr>
-<td><img src="app/samples/living-room.jpg" width="200" alt="Japandi living room"></td>
-<td><img src="app/samples/blue-vase.jpg" width="200" alt="Blue fluted vase"></td>
-<td><img src="app/samples/suit.jpg" width="200" alt="Model in a charcoal suit"></td>
-<td><img src="app/samples/breakfast.jpg" width="200" alt="Breakfast on a terrace"></td>
-</tr>
-<tr>
-<td><img src="app/samples/golden-retriever.jpg" width="200" alt="Golden retriever on a sofa"></td>
-<td><img src="app/samples/ceramic-vases.jpg" width="200" alt="Ceramic vases"></td>
-<td><img src="app/samples/lounge-chair.jpg" width="200" alt="Leather lounge chair"></td>
-<td><img src="app/samples/camel-coat.jpg" width="200" alt="Portrait in a camel coat"></td>
-</tr>
-</table>
+</details>
 
 ## Models
 
-Each model has its own license. Brennglas shows it before you first use the model.
-The table is a short summary, not legal advice. Read the license yourself.
+Each model has its own license; Brennglas shows it before first use. Short summary, not legal advice.
 
 | Model | Use | License | Commercial use |
 |---|---|---|---|
@@ -147,28 +125,19 @@ The table is a short summary, not legal advice. Read the license yourself.
 | FLUX 3 Image Klein | image, edit | [FLUX Kommunity](https://huggingface.co/black-forest-labs/flux-3-image-klein) | Below USD 5M yearly revenue, with content filters or output review. |
 | Krea 2 Turbo | image | [Krea 2 Community](https://huggingface.co/krea/Krea-2-Turbo) | Below USD 1M yearly revenue, with content filters or an equivalent review. |
 | Z-Image Turbo | image | [Apache 2.0](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Yes. |
-| LTX-2.5 22B | video with sound | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x) | Below USD 10M yearly revenue. |
+| LTX-2.5 22B, Layout-To-Render | video with sound, layout to video | [LTX-2.x Community](https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x) | Below USD 10M yearly revenue. |
 | Wan 2.2 Fun Camera 14B | video with camera path | [Apache 2.0](https://huggingface.co/alibaba-pai/Wan2.2-Fun-A14B-Control-Camera) | Yes. |
 | SeedVR2 7B | upscaling | [Apache 2.0](https://huggingface.co/ByteDance-Seed/SeedVR2-7B) | Yes. |
 | Gemma 4 E2B, Qwen 3.5 9B | prompt assistant | [Apache 2.0](https://huggingface.co/Qwen/Qwen3.5-9B) | Yes. |
 
-Missing a model you want? [Open an issue](https://github.com/m-w-marker/brennglas/issues) and tell me which one.
-
-## Requirements
-
-- Windows 10 or 11. Other systems may work with `pnpm dev`, but are not tested.
-- An NVIDIA GPU. Tested on an RTX 3090 with 24 GB. Support for 16 GB cards is in the works.
-- About 10 GB of free space for ComfyUI, plus the models you pick (5 to 50 GB each).
-- `install.bat` sets up the rest: Node.js, the portable [ComfyUI](https://github.com/comfyanonymous/ComfyUI) (tested with 0.45), the models and, if you want, the custom nodes [VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) and [WAS Node Suite](https://github.com/WASasquatch/was-node-suite-comfyui) for upscaling render sequences.
-- ffmpeg cuts clips, takes the last frame of a video, writes MP4 or ProRes from upscaled sequences and splits video files into frames. `install.bat` offers it (the official GPL build from [FFmpeg-Builds](https://github.com/FFmpeg-Builds/FFmpeg-Builds), about 90 MB, kept in `app\runtime\ffmpeg`). An ffmpeg already in your `PATH` works too.
+Missing a model? [Open an issue](https://github.com/m-w-marker/brennglas/issues).
 
 ## Model files
 
-The easiest way is `install.bat`, see [Setup](#setup). To download by hand, put each file into the named folder under `ComfyUI\models`.
-A file that several models share is needed only once. The links point to the same files the official ComfyUI templates use.
+`install.bat` downloads them for you. By hand, put each file into the named folder under `ComfyUI\models`; shared files are needed once.
 
 <!-- model-files:start -->
-Gated on Hugging Face: [FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy), [LTX-2.5 22B](https://huggingface.co/Lightricks/LTX-2.5).
+Gated on Hugging Face: [FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy), [LTX-2.5 22B](https://huggingface.co/Lightricks/LTX-2.5), [LTX-2.5 Layout-To-Render](https://huggingface.co/Lightricks/LTX-2.5).
 Log in, open the model page and accept the license once. Then their links work in your browser.
 
 <details><summary>Krea 2 Turbo</summary>
@@ -241,6 +210,18 @@ Log in, open the model page and accept the license once. Then their links work i
 
 </details>
 
+<details><summary>LTX-2.5 Layout-To-Render</summary>
+
+| File | Folder |
+|---|---|
+| [ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/diffusion_models/ltx-2.5-22b-distilled-transformer-comfy-int8-convrot.safetensors) | `diffusion_models` |
+| [ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/latent_upscale_models/ltx-2.5-latent-spatial-upscaler-x2-bf16-1.0.safetensors) | `latent_upscale_models` |
+| [ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors](https://huggingface.co/Lightricks/LTX-2.5-22b-IC-LoRA-Layout-To-Render/resolve/main/ltx-2.5-22b-ic-lora-layout-to-render-1.0.safetensors) | `loras` |
+| [gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/text_encoders/gemma4-12b-with-proj-ltx-2.5-comfy-int8-convrot.safetensors) | `text_encoders` |
+| [ltx-2.5-video-vae-bf16.safetensors](https://huggingface.co/Lightricks/LTX-2.5/resolve/main/vae/ltx-2.5-video-vae-bf16.safetensors) | `vae` |
+
+</details>
+
 <details><summary>SeedVR2 7B</summary>
 
 | File | Folder |
@@ -260,61 +241,10 @@ Log in, open the model page and accept the license once. Then their links work i
 </details>
 <!-- model-files:end -->
 
-## Setup
+## Ideas
 
-1. Get Brennglas: `git clone https://github.com/m-w-marker/brennglas.git`, or **Code → Download ZIP** on this page and unpack it.
-   Put it on a drive with free space, not into your user folder. The gallery grows inside `app\data`, and ComfyUI with its models goes next to it.
-2. Double click `install.bat`. It walks you through everything:
-   - gets a portable Node.js just for Brennglas, if yours is missing or too old (nothing is installed system wide),
-   - uses your portable ComfyUI or downloads it (about 2 GB), and offers an update if yours is older than 0.45,
-   - asks whether to add the two custom nodes for upscaling render sequences (needs Git),
-   - asks whether to add ffmpeg for cutting clips and upscaling video files (about 90 MB),
-   - installs Brennglas itself,
-   - lists every model with download size and license and downloads the ones you pick.
-3. Double click `start.bat`.
-
-Run `install.bat` again any time to add models. Interrupted downloads continue where they stopped.
-For the two gated models it opens the Hugging Face page and asks once for a read token.
-
-> [!TIP]
-> **Updating:** run `git pull` in the Brennglas folder (or unpack the new ZIP over the old folder), then run `install.bat` once.
-> Your gallery, characters and settings in `app\data` and `app\.env` stay. The database is upgraded on the first start and backed up before.
-
-<details><summary>Manual setup without install.bat</summary>
-
-Run these lines in a Command Prompt (cmd), not in PowerShell. You need Node.js 22.18 or newer.
-
-```
-cd brennglas\app
-corepack pnpm install
-copy .env.example .env
-```
-
-Open `app\.env`, remove the `#` in front of `COMFY_DIR` and set it to your portable ComfyUI folder (the one with `python_embeded`). Write the path without quotes.
-Then get the model files from [Model files](#model-files).
-
-</details>
-
-## Start
-
-Double click `start.bat`. It starts ComfyUI, Brennglas and your browser.
-
-Or start ComfyUI yourself, then run `pnpm dev` in `app` and open http://127.0.0.1:5173.
-
-On the first start the gallery holds eight sample images, all made with Brennglas.
-Click one and press Remix to see its prompt and settings.
-To try an edit, open the living room, press Keep editing and add the blue vase as a reference.
-
-## Ideas, and your opinion
-
-- **A light version.** Small and easy to host, without ComfyUI and without a strong GPU.
-  All models would run through cloud APIs such as fal or Replicate, and you pay the provider per image.
-  Would you use this? Please open an issue and tell me.
-- **16 GB graphics cards.** In the works: measured VRAM needs per model, and lighter model variants where 16 GB is not enough.
-- **Remote access**, for example over Tailscale, is not a feature yet. If you need it, open an issue.
+A light version over cloud APIs without a strong GPU, 16 GB cards (in the works), remote access: [tell me](https://github.com/m-w-marker/brennglas/issues) what you need.
 
 ## License
 
-Brennglas is licensed under [AGPL-3.0-only](LICENSE).
-You can use it freely. If you share a changed version or run it as a web service for others, you must publish your code.
-The models have their own licenses, see above.
+Brennglas is [AGPL-3.0-only](LICENSE): free to use; if you share a changed version or run it as a service for others, publish your code. The models have their own licenses, see above.

@@ -27,9 +27,26 @@
         "en": "Describe the finished image including the change"
       }
     },
+    "denoise": {
+      "node": "IN_SEED",
+      "field": "denoise",
+      "type": "float",
+      "default": 1,
+      "min": 0.8,
+      "max": 1,
+      "step": 0.01,
+      "label": {
+        "de": "Stärke der Änderung",
+        "en": "Edit strength"
+      },
+      "hint": {
+        "de": "100 % = freies Edit wie bisher. Darunter bleibt das Original die Grundlage, Aufbau und Perspektive bleiben stehen: um 90 % etwa für Render → Foto, unter 85 % ändert sich kaum noch etwas.",
+        "en": "100 % = free edit as before. Lower keeps the original as the base, layout and perspective stay: around 90 % e.g. for render to photo, below 85 % hardly anything changes."
+      }
+    },
     "megapixels": {
-      "node": "IN_REFS",
-      "field": "resolution.megapixels",
+      "node": "IN_RES",
+      "field": "megapixels",
       "type": "float",
       "default": 2,
       "min": 0.1,

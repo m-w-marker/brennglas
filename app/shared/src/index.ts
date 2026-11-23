@@ -1,4 +1,4 @@
-export type InputType = 'string' | 'int' | 'float' | 'bool' | 'enum' | 'image';
+export type InputType = 'string' | 'int' | 'float' | 'bool' | 'enum' | 'image' | 'video';
 export type ParamValue = string | number | boolean;
 /** Anzeigetext: einfach oder je Sprache. */
 export type Text = string | { de: string; en: string };
@@ -78,7 +78,7 @@ export interface WorkflowMap {
   job?: Record<string, FieldSpec>;
 }
 
-export type Mode = 't2i' | 'edit' | 'upscale' | 'video' | 't2v' | 'i2v' | 'flf2v' | 'prompt';
+export type Mode = 't2i' | 'edit' | 'upscale' | 'video' | 't2v' | 'i2v' | 'flf2v' | 'l2v' | 'prompt';
 
 export interface ModelLicense {
   name: string;
@@ -205,7 +205,31 @@ export type ImageSource =
   | { kind: 'input'; id: string; index: number }
   | { kind: 'blank'; aspect: number };
 
-export type FigureKind = 'person' | 'product';
+/** person = menschenähnliche Figur (auch Cartoon, humanoides Monster), creature = Wesen ohne Menschengestalt. */
+export type FigureKind = 'person' | 'creature' | 'product';
+
+export interface SheetPanel {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Blatt-Raster: 2 MP in 16:9 im 32er-Raster, damit die Edit-Workflows die Vorlage nicht skalieren. → plan_figurenblatt */
+export const SHEET_SIZE = { width: 1920, height: 1088 } as const;
+
+/** Felder je Art in der Reihenfolge des Prompts; Vorlage, Zusammensetzen und Zurückkleben nutzen dieselben Maße. */
+export const SHEET_PANELS: Record<FigureKind, readonly SheetPanel[]> = {
+  // Ganzkörper vorn, Ganzkörper Rücken, halbnah 45°, Kopf nah leicht gedreht
+  person: [{ x: 0, y: 0, w: 384, h: 1088 }, { x: 384, y: 0, w: 384, h: 1088 }, { x: 768, y: 0, w: 576, h: 1088 }, { x: 1344, y: 0, w: 576, h: 1088 }],
+  // vorn, Seite, Rücken, Kopf nah
+  creature: [{ x: 0, y: 0, w: 960, h: 544 }, { x: 960, y: 0, w: 960, h: 544 }, { x: 0, y: 544, w: 960, h: 544 }, { x: 960, y: 544, w: 960, h: 544 }],
+  // vorn, 45°, Rücken, Detail
+  product: [{ x: 0, y: 0, w: 448, h: 1088 }, { x: 448, y: 0, w: 448, h: 1088 }, { x: 896, y: 0, w: 448, h: 1088 }, { x: 1344, y: 0, w: 576, h: 1088 }],
+};
+
+/** Weitere Fotos derselben Figur als Referenzen neben dem Porträt. */
+export const MAX_EXTRA_VIEWS = 4;
 
 /** Gleichbleibende Figur oder gleichbleibendes Produkt: das Porträt ist Referenz 1 des Blatt-Jobs. → plan_referenz */
 export interface Figure {
@@ -218,16 +242,25 @@ export interface Figure {
   createdAt: string;
 }
 
-export interface FigureRequest {
-  name: string;
+/** Blatt rechnen (Vorschau), ohne schon eine Figur anzulegen. Vorrang: sheet, dann views, sonst rechnet das Modell. */
+export interface FigureSheetRequest {
   kind: FigureKind;
-  /** Porträt bzw. Packshot. */
+  /** Porträt bzw. Packshot; bleibt Referenz 1 des Blatts und geht so in jede Szene. */
   portrait: ImageSource;
   /** Edit-Workflow, der das Blatt rechnet. */
   workflow: string;
-  /** Person: Kleidung für die Ganzkörper-Ansicht · Produkt: Details, die das Foto nicht zeigt (z. B. die Rückseite). */
+  /** Person: Kleidung in allen Ansichten · Kreatur und Produkt: Details, die das Foto nicht zeigt (z. B. die Rückseite). */
   outfit?: string;
+  /** Weitere Fotos derselben Figur als Referenzen, höchstens MAX_EXTRA_VIEWS. */
+  extra?: ImageSource[];
+  /** Ein Foto je Feld, alle vier in der Reihenfolge von SHEET_PANELS: wird nur zusammengesetzt, kein Modell-Lauf. */
+  views?: ImageSource[];
+  /** Fertiges Blatt (eigene Collage), wird unverändert übernommen. */
+  sheet?: ImageSource;
 }
+
+/** Figur speichern: aus einer fertigen Vorschau (sheetId) oder in einem Zug, dann wird das Blatt erst gerechnet. */
+export type FigureRequest = { name: string } & ({ kind: FigureKind; sheetId: string } | FigureSheetRequest);
 
 export interface GenerationFilter {
   q?: string;

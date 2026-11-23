@@ -1,17 +1,20 @@
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import type { ClaudeConfig, FigureKind, FigureRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import sharp from 'sharp';
+import { MAX_EXTRA_VIEWS, SHEET_PANELS } from '@brennglas/shared';
+import type { ClaudeConfig, FigureKind, FigureSheetRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
-import { concatClips, frameAt, type ConcatOptions } from '../clips.ts';
+import { concatClips, frameAt, probe, type ConcatOptions } from '../clips.ts';
+import { saveVideoInput } from '../video-input.ts';
 import { PlanError, TRANSITIONS, type CutFormat, type Join, type ShotEdit, type Transition } from '../concat-plan.ts';
 import {
   deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
   refsOf, setFavorite, toApi, usedWorkflows, type DB,
 } from '../db.ts';
-import { sheetPrompt } from '../figures.ts';
+import { composeSheet, sheetProblem, sheetPrompt, templateFile } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
 import { cropRegion, saveInput, saveOutput } from '../images.ts';
 import { BadRequest, type Jobs } from '../jobs.ts';
@@ -108,11 +111,27 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
   });
 
   // Rohdaten statt multipart: der Browser schickt die Datei direkt als Body, ohne Zusatzpaket.
-  app.addContentTypeParser(/^image\//, { parseAs: 'buffer', bodyLimit: MAX_UPLOAD }, (_req, body, done) => done(null, body));
+  app.addContentTypeParser(/^(image|video)\//, { parseAs: 'buffer', bodyLimit: MAX_UPLOAD }, (_req, body, done) => done(null, body));
 
   app.post('/api/upload', { bodyLimit: MAX_UPLOAD }, async (req, reply) => {
     if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-      return reply.code(415).send({ error: 'Erwartet ein Bild als Body (Content-Type image/…)' });
+      return reply.code(415).send({ error: 'Erwartet ein Bild oder Video als Body (Content-Type image/… oder video/…)' });
+    }
+    // Layout-Videos: Ablage nach Inhalt, ffprobe prüft, dass es wirklich ein Video ist
+    const type = String(req.headers['content-type'] ?? '');
+    if (type.startsWith('video/')) {
+      try {
+        const saved = saveVideoInput(dataDir, req.body, type);
+        const info = await probe(join(dataDir, saved.rel)).catch((e: unknown) => {
+          // nur Neues wegräumen: ein schon vorhandenes Video kann an Galerie-Einträgen hängen
+          if (saved.created) rmSync(join(dataDir, saved.rel), { force: true });
+          throw e;
+        });
+        const res: UploadResult = { inputId: saved.inputId, width: info.width, height: info.height };
+        return res;
+      } catch (e) {
+        return reply.code(400).send({ error: (e as Error).message });
+      }
     }
     try {
       const saved = await saveInput(dataDir, req.body);
@@ -160,26 +179,79 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
 
   app.get('/api/figures', async () => listFigures(db));
 
-  // Figur anlegen = Blatt-Job starten: leere 16:9-Fläche als Bild 1, Porträt als Bild 2 → plan_referenz
-  app.post('/api/figures', async (req, reply) => {
-    const body = (req.body ?? {}) as Partial<FigureRequest>;
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    const kind: FigureKind | null = body.kind === 'person' || body.kind === 'product' ? body.kind : null;
-    const outfit = typeof body.outfit === 'string' ? body.outfit.trim().slice(0, 200) : '';
+  // FLUX zeichnet Blätter erst in 4 MP sauber (Büste statt Schultern, grobe kleine Gesichter in 2 MP, gemessen 23.11.2026)
+  const SHEET_MEGAPIXELS: Record<string, number> = { 'flux3-edit': 4 };
+
+  const parseKind = (k: unknown): FigureKind => {
+    if (k === 'person' || k === 'creature' || k === 'product') return k;
+    throw new BadRequest('kind: person, creature oder product');
+  };
+
+  /** Blatt als Galerie-Eintrag, Porträt als Referenz 1: fertiges Blatt, Fotos je Feld oder per Modell auf der Vorlage. → plan_figurenblatt */
+  async function makeSheet(body: Partial<FigureSheetRequest>): Promise<string> {
+    const kind = parseKind(body.kind);
     const map = typeof body.workflow === 'string' ? workflows.get(body.workflow)?.map : undefined;
+    if (!map || !('prompt' in map.inputs) || !map.refs?.token || map.refs.max < 1) {
+      throw new BadRequest('workflow muss ein Bearbeiten-Workflow mit Referenzbildern sein');
+    }
+    const [portrait] = parseImages([body.portrait]) ?? [];
+    if (!portrait || portrait.kind === 'blank') throw new BadRequest('Porträt fehlt');
+    const photos = (raw: unknown) => (parseImages(raw) ?? []).map((s) => {
+      if (s.kind === 'blank') throw new BadRequest('Leere Fläche ist kein Foto');
+      return s;
+    });
+    const extra = photos(body.extra);
+    const views = photos(body.views);
+    const [sheet] = photos(body.sheet === undefined ? undefined : [body.sheet]);
+    if (extra.length > MAX_EXTRA_VIEWS) throw new BadRequest(`Höchstens ${MAX_EXTRA_VIEWS} weitere Ansichten`);
+    if (1 + extra.length > map.refs.max) throw new BadRequest(`${map.name} nimmt höchstens ${map.refs.max} Referenzbilder`);
+    const refs = [portrait, ...extra];
+    if (sheet) {
+      const png = await sharp(jobs.readSource(sheet)).png().toBuffer();
+      return jobs.importImage(png, { workflow: map.name, prompt: 'Eigenes Blatt', refs });
+    }
+    if (views.length) {
+      // grenze: nur volle Felder, Lücken füllt erst Phase 3 von plan_figurenblatt
+      if (views.length !== SHEET_PANELS[kind].length) throw new BadRequest(`Je Feld ein Foto, ${SHEET_PANELS[kind].length} nötig`);
+      const png = await composeSheet(kind, views.map((s) => jobs.readSource(s)));
+      return jobs.importImage(png, { workflow: map.name, prompt: 'Blatt aus Fotos', refs });
+    }
+    const outfit = typeof body.outfit === 'string' ? body.outfit.trim().slice(0, 200) : '';
+    const tpl = await saveInput(dataDir, readFileSync(templateFile(config.samplesDir, kind, map.name)));
+    return jobs.create({
+      workflow: map.name, prompt: sheetPrompt(kind, map.refs.token, outfit, extra.length),
+      params: SHEET_MEGAPIXELS[map.name] ? { megapixels: SHEET_MEGAPIXELS[map.name] as number } : {},
+      images: [{ kind: 'upload', id: tpl.inputId }, ...refs],
+    });
+  }
+
+  // Vorschau: Blatt rechnen, ohne schon eine Figur anzulegen; neu würfeln = noch einmal aufrufen
+  app.post('/api/figures/sheet', async (req, reply) => {
+    try {
+      return { sheetId: await makeSheet((req.body ?? {}) as Partial<FigureSheetRequest>) };
+    } catch (e) {
+      return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
+    }
+  });
+
+  // Figur speichern: aus einer Vorschau (sheetId) oder in einem Zug (MCP), dann wird das Blatt erst gerechnet
+  app.post('/api/figures', async (req, reply) => {
+    const body = (req.body ?? {}) as Partial<FigureSheetRequest> & { name?: unknown; sheetId?: unknown };
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
     if (!name || name.length > 60) return reply.code(400).send({ error: 'Name fehlt oder ist länger als 60 Zeichen' });
     // Claude wählt Figuren per Name, darum eindeutig
     if (listFigures(db).some((f) => f.name.toLowerCase() === name.toLowerCase())) return reply.code(400).send({ error: `Eine Figur „${name}“ gibt es schon` });
-    if (!kind) return reply.code(400).send({ error: 'kind: person oder product' });
-    if (!map || !('prompt' in map.inputs) || !map.refs?.token || map.refs.max < 1) {
-      return reply.code(400).send({ error: 'workflow muss ein Bearbeiten-Workflow mit Referenzbildern sein' });
-    }
     try {
-      const [portrait] = parseImages([body.portrait]) ?? [];
-      if (!portrait || portrait.kind === 'blank') throw new BadRequest('Porträt fehlt');
-      const sheetId = await jobs.create({
-        workflow: map.name, prompt: sheetPrompt(kind, map.refs.token, outfit), params: {}, images: [{ kind: 'blank', aspect: 16 / 9 }, portrait],
-      });
+      const kind = parseKind(body.kind);
+      let sheetId: string;
+      if (typeof body.sheetId === 'string') {
+        const row = getRow(db, body.sheetId);
+        const problem = sheetProblem(row?.status, row ? refsOf(row).length : 0, row ? figureUsing(db, row.id) : null);
+        if (problem || !row) throw new BadRequest(problem ?? 'Blatt nicht gefunden');
+        sheetId = row.id;
+      } else {
+        sheetId = await makeSheet(body);
+      }
       const id = randomUUID();
       insertFigure(db, { id, name, kind, sheetId });
       return listFigures(db).find((f) => f.id === id);

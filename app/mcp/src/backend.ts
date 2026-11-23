@@ -65,6 +65,18 @@ export async function toSource(ref: string): Promise<ImageSource> {
   throw new Error(`${ref}: neither an existing file nor a gallery id`);
 }
 
+const VIDEO_MIME: Record<string, string> = { '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime' };
+
+/** Wert eines Video-Felds: Galerie-ID oder Upload-ID bleibt, ein lokaler Pfad wird hochgeladen. */
+export async function toVideo(ref: string): Promise<string> {
+  if (/^[0-9a-f-]{36}$/i.test(ref) || /^[0-9a-f]{64}$/.test(ref)) return ref;
+  if (!existsSync(ref)) throw new Error(`${ref}: neither an existing video file nor a gallery id`);
+  const type = VIDEO_MIME[extname(ref).toLowerCase()];
+  if (!type) throw new Error(`${ref}: unsupported video type (mp4, webm, mov)`);
+  const up = await call<UploadResult>('/api/upload', { method: 'POST', headers: { 'content-type': type }, body: readFileSync(ref) });
+  return up.inputId;
+}
+
 export const en = (t: Text | undefined): string | undefined => (t === undefined ? undefined : typeof t === 'string' ? t : t.en);
 
 /** Enum-Werte dürfen auch als Anzeigename kommen („Arc left“ statt des ganzen Satzes). */

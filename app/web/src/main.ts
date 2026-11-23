@@ -130,7 +130,7 @@ try {
   // Video = Filmmodi, Video-Upscale und Schnitt; alles andere zeigt der Filter als Bild
   const isWf = (w: string | undefined): w is string => !!w;
   const groups = {
-    video: [...new Set([...models.flatMap((m) => [m.modes.t2v, m.modes.i2v, m.modes.flf2v]).filter(isWf), ...videoWfs, 'concat'])],
+    video: [...new Set([...models.flatMap((m) => [m.modes.t2v, m.modes.i2v, m.modes.flf2v, m.modes.l2v]).filter(isWf), ...videoWfs, 'concat'])],
     models: [...models.map((m) => ({ id: m.id, label: m.short, workflows: Object.values(m.modes).filter(isWf) })),
       { id: 'concat', label: t('gal.concat'), workflows: ['concat'] }],
   };

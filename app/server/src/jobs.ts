@@ -11,6 +11,7 @@ import {
 import { broadcast } from './events.ts';
 import { blankPng, scenePrompt } from './figures.ts';
 import { contentHash, inputPaths, refForComfy, saveInput, saveOutput } from './images.ts';
+import { videoInputPath } from './video-input.ts';
 
 export class BadRequest extends Error {}
 
@@ -77,6 +78,8 @@ export class Jobs {
     }
     const scene = req.figures?.length ? this.scene(wf, req, prompt) : null;
     if (scene) params.prompt = scene.prompt;
+    // Bild 1 ist bei Szenen die leere Fläche, als Startbild gäbe sie Grau
+    if (scene) delete params.denoise;
     const sources = await this.materialize(scene?.images ?? req.images ?? []);
     if (imageKey && sources.length === 0) throw new BadRequest('Eingabebild fehlt – erst hochladen');
     const series = req.series;
@@ -84,6 +87,15 @@ export class Jobs {
       && series.index >= 1 && series.index <= series.size && series.size <= 64)) throw new BadRequest('Serie ungültig');
     if (!imageKey && sources.length > 0) throw new BadRequest(`${req.workflow} nimmt keine Bilder`);
     const [input, ...refs] = sources.map((s, i) => this.resolveSource(s, i === 0));
+    // Video-Felder (Layout zu Video): Wert bleibt die ID, ComfyUI bekommt die Datei
+    const videos = Object.entries(wf.map.inputs).filter(([, s]) => s.type === 'video').map(([key]) => {
+      try {
+        const rel = videoInputPath(params[key], (vid) => getRow(this.db, vid)?.video_path ?? null, (r) => existsSync(join(this.dataDir, r)));
+        return { key, value: String(params[key]), rel };
+      } catch (e) {
+        throw new BadRequest(`${key}: ${(e as Error).message}`);
+      }
+    });
     const min = wf.map.refs?.min ?? 0;
     if (refs.length < min) throw new BadRequest(min === 1 ? 'Zweites Bild fehlt' : `Mindestens ${min + 1} Bilder nötig`);
     if (imageKey) params[imageKey] = 'pruefung.png';
@@ -107,6 +119,10 @@ export class Jobs {
       const main = readFileSync(join(this.dataDir, input.path));
       params[imageKey] = await this.comfy.uploadImage(main, comfyName(main));
     }
+    for (const v of videos) {
+      const data = readFileSync(join(this.dataDir, v.rel));
+      params[v.key] = await this.comfy.uploadImage(data, `brennglas_${contentHash(data).slice(0, 20)}${extname(v.rel)}`);
+    }
     const refNames: string[] = [];
     for (const r of refs) {
       const ref = await refForComfy(join(this.dataDir, r.path), wf.map.refs?.maxPixels);
@@ -116,7 +132,8 @@ export class Jobs {
     addRefs(applied.graph, wf.map, refNames);
     applyLora(applied.graph);
     insertGeneration(this.db, {
-      id, workflow: req.workflow, prompt, params: scene ? { ...applied.values, ...scene.params } : applied.values,
+      id, workflow: req.workflow, prompt,
+      params: { ...(scene ? { ...applied.values, ...scene.params } : applied.values), ...Object.fromEntries(videos.map((v) => [v.key, v.value])) },
       // Szene: Bild 1 ist nur die leere Fläche – kein Vorher-Bild, keine Kette
       parentId: scene ? null : input?.parentId ?? null,
       inputPath: scene ? null : input?.path ?? null, inputPreviewPath: scene ? null : input?.preview ?? null,
@@ -240,6 +257,26 @@ export class Jobs {
     const paths = inputPaths(s.id);
     if (!paths || !existsSync(join(this.dataDir, paths.inputPath))) throw new BadRequest('Eingabebild fehlt – erst hochladen');
     return { path: paths.inputPath, preview: paths.inputPreviewPath, parentId: null };
+  }
+
+  /** Bilddaten einer Quelle (Upload, Ergebnis, Eingabebild eines Jobs). */
+  readSource(s: ImageSource): Buffer {
+    return readFileSync(join(this.dataDir, this.resolveSource(s, false).path));
+  }
+
+  /** Fertiges Bild ohne ComfyUI als Galerie-Eintrag, z. B. ein Figurenblatt aus Fotos; refs wie bei einem Blatt-Job. */
+  async importImage(png: Buffer, d: { workflow: string; prompt: string; refs: ImageSource[] }): Promise<string> {
+    const refs = d.refs.map((s) => {
+      const { path, preview } = this.resolveSource(s, false);
+      return { path, preview };
+    });
+    const id = randomUUID();
+    const saved = await saveOutput(this.dataDir, id, png);
+    insertGeneration(this.db, { id, workflow: d.workflow, prompt: d.prompt, params: { prompt: d.prompt }, refs });
+    finishDone(this.db, id, { ...saved, expandedPrompt: null, durationMs: 0 });
+    const row = getRow(this.db, id);
+    if (row) broadcast({ type: 'done', generation: toApi(row) });
+    return id;
   }
 
   /** Wartend: aus der ComfyUI-Queue nehmen. Laufend: unterbrechen, execution_interrupted schließt ab. */

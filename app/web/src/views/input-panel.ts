@@ -1,5 +1,5 @@
 import type { FieldSpec, Figure, Text, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
-import { api, GEN_DRAG, imageUrl, refUrl } from '../api.ts';
+import { api, GEN_DRAG, imageUrl, refUrl, videoUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
 import { commercialLabel, ensureLicense } from './license.ts';
@@ -155,7 +155,7 @@ function sliderField(key: string, spec: FieldSpec): Field {
   input.addEventListener('input', show);
   show();
   return {
-    el: h('label', {}, lbl(spec, key), h('div', { class: 'row' }, input, out)),
+    el: h('label', {}, lbl(spec, key), h('div', { class: 'row' }, input, out), spec.hint ? h('small', { class: 'opt-hint' }, tx(spec.hint) ?? '') : null),
     get: () => Number(input.value),
     set: (v) => { if (typeof v === 'number') { input.value = String(v); show(); } },
   };
@@ -335,9 +335,76 @@ function imageBar(key: string, spec: FieldSpec, max: number, token: string, onEr
   };
 }
 
-const MODES: readonly Mode[] = ['t2i', 'edit', 't2v', 'i2v', 'flf2v', 'upscale', 'video', 'prompt'];
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Layout-Video: Datei oder Galerie-Video, wird sofort hochgeladen; der Wert ist die ID. → plan_layout_render */
+function videoField(key: string, spec: FieldSpec, onError: (msg: string) => void): Field {
+  let value: string | undefined;
+  let url = '';
+  // Zählt jede Änderung: eine Upload-Antwort zu einem inzwischen ersetzten Video wird verworfen
+  let ticket = 0;
+  const fileInput = h('input', { type: 'file', accept: 'video/mp4,video/webm,video/quicktime', class: 'hidden' });
+  const box = h('div', { class: 'imgbar' });
+  const release = () => { if (url.startsWith('blob:')) URL.revokeObjectURL(url); url = ''; };
+
+  function render(name = '') {
+    if (value === undefined) {
+      const empty = h('div', { class: 'drop', tabindex: 0 }, h('div', { class: 'drop-text' }, h('strong', {}, t('vid.title')), t('vid.sub')));
+      empty.addEventListener('click', () => fileInput.click());
+      empty.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+      return box.replaceChildren(empty);
+    }
+    const rm = h('button', { type: 'button', class: 'drop-clear', title: t('drop.remove') }, '×');
+    rm.addEventListener('click', () => { ticket++; release(); value = undefined; render(); });
+    const preview = url ? h('video', { src: url, muted: true, loop: true, autoplay: true, playsinline: true }) : null;
+    // das muted-Attribut per setAttribute schaltet den Ton nicht ab, nur die Eigenschaft
+    if (preview) preview.muted = true;
+    box.replaceChildren(h('div', { class: 'bar-tile main' }, preview, h('span', { class: 'drop-name' }, name), rm));
+  }
+
+  function take(f: File | undefined) {
+    if (!f) return;
+    if (!f.type.startsWith('video/')) return onError(t('vid.notVideo'));
+    onError('');
+    release();
+    value = undefined;
+    const mine = ++ticket;
+    box.replaceChildren(h('div', { class: 'drop' }, h('div', { class: 'drop-text' }, t('vid.uploading'))));
+    void api.upload(f).then((u) => {
+      if (mine !== ticket) return;
+      value = u.inputId;
+      url = URL.createObjectURL(f);
+      render(f.name);
+    }).catch((e: Error) => { if (mine === ticket) { onError(e.message); render(); } });
+  }
+
+  function set(v: ParamValue | undefined) {
+    ticket++;
+    release();
+    value = typeof v === 'string' && v ? v : undefined;
+    // Galerie-Video hat eine URL; ein alter Upload nur seine ID
+    if (value && UUID.test(value)) url = videoUrl(value);
+    render(value ? t(UUID.test(value) ? 'src.gallery' : 'vid.uploaded') : '');
+  }
+
+  box.addEventListener('dragover', (e) => { e.preventDefault(); box.classList.add('over'); });
+  box.addEventListener('dragleave', () => box.classList.remove('over'));
+  box.addEventListener('drop', (e) => {
+    e.preventDefault();
+    box.classList.remove('over');
+    const gen = e.dataTransfer?.getData(GEN_DRAG);
+    if (gen) return set(gen);
+    take(e.dataTransfer?.files[0]);
+  });
+  fileInput.addEventListener('change', () => { take(fileInput.files?.[0]); fileInput.value = ''; });
+
+  render();
+  return { el: h('div', { class: 'field' }, lbl(spec, key), box, fileInput, spec.hint ? h('small', { class: 'opt-hint' }, tx(spec.hint) ?? '') : null), get: () => value, set };
+}
+
+const MODES: readonly Mode[] = ['t2i', 'edit', 't2v', 'i2v', 'flf2v', 'l2v', 'upscale', 'video', 'prompt'];
 const MODE_KEY = {
-  t2i: 'mode.t2i', edit: 'mode.edit', upscale: 'mode.upscale', video: 'mode.video', t2v: 'mode.t2v', i2v: 'mode.i2v', flf2v: 'mode.flf2v', prompt: 'mode.prompt',
+  t2i: 'mode.t2i', edit: 'mode.edit', upscale: 'mode.upscale', video: 'mode.video', t2v: 'mode.t2v', i2v: 'mode.i2v', flf2v: 'mode.flf2v', l2v: 'mode.l2v', prompt: 'mode.prompt',
 } as const;
 const PICK = 'brennglas.model';
 
@@ -345,7 +412,7 @@ const PICK = 'brennglas.model';
 const GROUPS = ['image', 'movie', 'upscale', 'text'] as const;
 const GROUP_KEY = { image: 'group.image', movie: 'group.movie', upscale: 'group.upscale', text: 'group.text' } as const;
 const groupOf = (m: ModelInfo): (typeof GROUPS)[number] =>
-  m.modes.t2i || m.modes.edit ? 'image' : m.modes.t2v || m.modes.i2v ? 'movie' : m.modes.prompt ? 'text' : 'upscale';
+  m.modes.t2i || m.modes.edit ? 'image' : m.modes.t2v || m.modes.i2v || m.modes.l2v ? 'movie' : m.modes.prompt ? 'text' : 'upscale';
 
 function remembered(): string | null {
   try {
@@ -368,7 +435,10 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
   let image: WorkflowForm['image'] = null;
   // Szene: Fläche + je Figur zwei Referenzen, die Leiste trägt nur den Rest
   const figures = sceneable && wf.refToken && wf.refs >= 2
-    ? figurePicker(wf.refToken, (n) => image?.field.limit(n ? wf.refs - 2 * n : 1 + wf.refs)) : null;
+    ? figurePicker(wf.refToken, (n) => {
+      image?.field.limit(n ? wf.refs - 2 * n : 1 + wf.refs);
+      fields.get('denoise')?.el.classList.toggle('hidden', n > 0); // Szene hat kein Original, der Server nimmt dann 100 %
+    }) : null;
   let prompt: HTMLTextAreaElement | null = null;
   const section = h('div', { class: 'section hidden' });
   const advanced = h('div', { class: 'adv-body' });
@@ -386,6 +456,12 @@ function buildForm(wf: WorkflowInfo, send: () => void, setError: (msg: string) =
       const field = imageBar(key, spec, 1 + wf.refs, wf.refToken ?? '', setError);
       image = { key, field };
       if (figures) section.append(figures.el, figures.format);
+      section.append(field.el);
+      continue;
+    }
+    if (spec.type === 'video') {
+      const field = videoField(key, spec, setError);
+      fields.set(key, field);
       section.append(field.el);
       continue;
     }
@@ -501,7 +577,8 @@ export function inputPanel(
     sections.append(f.section);
   }
 
-  const usable = models.filter((m) => Object.values(m.modes).every((w) => w !== undefined && forms.has(w)));
+  // Modelle nur mit Modi, die hier keinen Reiter haben, bleiben draußen
+  const usable = models.filter((m) => Object.values(m.modes).every((w) => w !== undefined && forms.has(w)) && MODES.some((md) => m.modes[md]));
   const modes = MODES.filter((md) => usable.some((m) => m.modes[md]));
   const ready = (m: ModelInfo) => m.missing?.length === 0;
 

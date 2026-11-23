@@ -60,8 +60,8 @@
         1
       ],
       "latent_image": [
-        "17",
-        2
+        "61",
+        0
       ],
       "seed": 1,
       "steps": 16,
@@ -127,10 +127,9 @@
         "3",
         0
       ],
-      "resolution": "resize",
-      "resolution.megapixels": 2,
+      "resolution": "keep resolution",
       "images.image0": [
-        "11",
+        "60",
         0
       ]
     },
@@ -378,6 +377,37 @@
     "class_type": "ComfySwitchNode",
     "_meta": {
       "title": "Switch (Trigger)"
+    }
+  },
+  "60": {
+    "inputs": {
+      "image": [
+        "11",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "megapixels": 2,
+      "resolution_steps": 1
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "IN_RES"
+    }
+  },
+  "61": {
+    "inputs": {
+      "pixels": [
+        "60",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (Original)"
     }
   }
 }

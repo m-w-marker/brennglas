@@ -1,0 +1,20 @@
+{
+  "id": "ltx25layout",
+  "name": "LTX-2.5 Layout-To-Render",
+  "short": "LTX 2.5 Layout",
+  "vendor": "Lightricks",
+  "order": 8,
+  "recommended": false,
+  "modes": {
+    "l2v": "ltx25layout-l2v"
+  },
+  "license": {
+    "name": "LTX-2.x Community License",
+    "url": "https://github.com/Lightricks/LTX-2/blob/main/LICENSE-2_x",
+    "commercial": "limited",
+    "summary": {
+      "de": "Kostenlos, auch kommerziell, solange das Unternehmen unter 10 Mio. US-$ Jahresumsatz bleibt; darüber nur mit Lizenz von Lightricks.",
+      "en": "Free, including commercial use, while the company stays below US$10M annual revenue; above that only with a licence from Lightricks."
+    }
+  }
+}

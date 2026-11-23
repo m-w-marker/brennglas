@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { Mode, ModelSpec } from '@brennglas/shared';
 import type { ApiGraph, Workflow } from './comfy/workflow.ts';
 
-const MODES: readonly Mode[] = ['t2i', 'edit', 'upscale', 'video', 't2v', 'i2v', 'flf2v', 'prompt'];
+const MODES: readonly Mode[] = ['t2i', 'edit', 'upscale', 'video', 't2v', 'i2v', 'flf2v', 'l2v', 'prompt'];
 
 /** Loader-Node → ComfyUI-Modellordner und das Feld mit dem Dateinamen. */
 const LOADERS: Record<string, { folder: string; field: string }> = {

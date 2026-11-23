@@ -1,0 +1,93 @@
+{
+  "name": "ltx25layout-l2v",
+  "label": {
+    "de": "Layout zu Video",
+    "en": "Layout to video"
+  },
+  "submit": {
+    "de": "Video erzeugen",
+    "en": "Generate video"
+  },
+  "inputs": {
+    "image": {
+      "node": "IN_IMAGE",
+      "field": "image",
+      "type": "image",
+      "label": {
+        "de": "Erstes Frame (sauberes Rendering von Frame 0 des Shots)",
+        "en": "First frame (clean render of the shot's frame 0)"
+      }
+    },
+    "layout": {
+      "node": "IN_LAYOUT",
+      "field": "file",
+      "type": "video",
+      "label": {
+        "de": "Layout-Video (Clay oder Boxen, 24 fps)",
+        "en": "Layout video (clay or boxes, 24 fps)"
+      },
+      "hint": {
+        "de": "Grauer Playblast, 24 fps. Menschen als Puppen mit Kugelkopf – sonst keine glatten Kugeln (Lampen, Pflanzen).",
+        "en": "Grey playblast, 24 fps. People as mannequins with a ball head – no other smooth balls (lamps, plants)."
+      }
+    },
+    "prompt": {
+      "node": "IN_PROMPT",
+      "field": "value",
+      "type": "string",
+      "label": {
+        "de": "Prompt",
+        "en": "Prompt"
+      },
+      "placeholder": {
+        "de": "Ein bis zwei Sätze zum fertigen Bild, nicht „clay“ oder „3D“ – englisch wirkt am besten",
+        "en": "One or two sentences about the finished shot, not \"clay\" or \"3D\""
+      }
+    },
+    "size": {
+      "node": "IN_SIZE",
+      "field": "value",
+      "type": "int",
+      "default": 720,
+      "min": 448,
+      "max": 1088,
+      "unit": "px",
+      "label": {
+        "de": "Auflösung (kurze Kante, gerundet auf 64)",
+        "en": "Resolution (short edge, rounded to 64)"
+      },
+      "presets": [
+        {
+          "label": "480p",
+          "value": 480
+        },
+        {
+          "label": "720p",
+          "value": 720
+        },
+        {
+          "label": "1080p",
+          "value": 1080
+        }
+      ]
+    },
+    "seed": {
+      "node": "IN_SEED",
+      "field": "noise_seed",
+      "type": "int",
+      "random": true,
+      "min": 0,
+      "max": 4294967295,
+      "label": "Seed",
+      "advanced": true
+    }
+  },
+  "outputs": {
+    "image": {
+      "node": "OUT_IMAGE"
+    },
+    "video": {
+      "node": "OUT_VIDEO"
+    }
+  }
+}
