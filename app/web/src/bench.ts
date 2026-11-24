@@ -1,7 +1,9 @@
-import type { DurationStats, Mode, ModelSpec } from '@brennglas/shared';
+import { statKey, type DurationStats, type Mode, type ModelBench, type ModelSpec } from '@brennglas/shared';
 
 /** 1× auf der RTX 3090: FLUX Text to Image 2 MP, Mittel des Testsatzes (→ plan_modellhilfe.md Phase 1). */
 export const BENCH_UNIT_MS = 10200;
+/** Stufe, für die speed/speedEnhanced gelten; andere Stufen stehen in speedAt. */
+export const BENCH_MP = 2;
 
 /** Ab so vielen eigenen Läufen gilt der eigene Median statt der Schätzung. */
 export const MIN_RUNS = 3;
@@ -10,15 +12,24 @@ export interface BenchTimes {
   /** Eigener Median bzw. Schätzung in ms, ohne und mit Prompt-Erweiterung. */
   plain?: { ms: number; own: boolean };
   enhanced?: { ms: number; own: boolean };
+  /** Eigene Läufe mit diesen Einstellungen bisher (für „n/3“). */
+  runs: number;
 }
 
-/** Faktor eines Statistik-Schlüssels (`<workflow>` oder `<workflow>+pe`) laut Modell-Dateien. */
+/** Gemessener Faktor für Modus und Stufe; mp undefined = Video oder Modus ohne Stufen. */
+export function refFactor(b: ModelBench | undefined, mode: Mode, mp: number | undefined, enhanced: boolean): number | undefined {
+  const set = mp === undefined || mp === BENCH_MP ? b : b?.speedAt?.[String(mp)];
+  return (enhanced ? set?.speedEnhanced : set?.speed)?.[mode];
+}
+
+/** Faktor eines Statistik-Schlüssels laut Modell-Dateien (Umkehrung von statKey). */
 function factorOf(models: ModelSpec[], key: string): number | undefined {
-  const pe = key.endsWith('+pe');
-  const wf = pe ? key.slice(0, -3) : key;
-  for (const m of models) {
-    const mode = (Object.entries(m.modes) as [Mode, string][]).find(([, w]) => w === wf)?.[0];
-    if (mode) return (pe ? m.bench?.speedEnhanced : m.bench?.speed)?.[mode];
+  const m = /^(.*?)(?:@([\d.]+))?(\+pe)?$/.exec(key);
+  if (!m) return undefined;
+  const [, wf, mp, pe] = m;
+  for (const model of models) {
+    const mode = (Object.entries(model.modes) as [Mode, string][]).find(([, w]) => w === wf)?.[0];
+    if (mode) return refFactor(model.bench, mode, mp === undefined ? undefined : Number(mp), !!pe);
   }
   return undefined;
 }
@@ -32,19 +43,21 @@ export function unitMs(models: ModelSpec[], stats: DurationStats): number | null
   return units.length ? (units[Math.floor(units.length / 2)] as number) : null;
 }
 
-/** Eigene Zeit des Workflows, sonst Faktor × Takt dieses Rechners, sonst nichts. */
-export function benchTimes(models: ModelSpec[], stats: DurationStats, model: ModelSpec, mode: Mode): BenchTimes {
+/** Eigene Zeit des Workflows bei dieser Stufe, sonst Faktor × Takt dieses Rechners, sonst nichts. */
+export function benchTimes(models: ModelSpec[], stats: DurationStats, model: ModelSpec, mode: Mode, mp?: number): BenchTimes {
   const wf = model.modes[mode];
-  if (!wf || !model.bench) return {};
+  if (!wf) return { runs: 0 };
   const unit = unitMs(models, stats);
-  const pick = (key: string, factor: number | undefined) => {
-    const own = stats[key];
+  const pick = (enhanced: boolean) => {
+    const own = stats[statKey(wf, mp, enhanced)];
     if (own && own.n >= MIN_RUNS) return { ms: own.ms, own: true };
+    const factor = refFactor(model.bench, mode, mp, enhanced);
     return factor && unit ? { ms: factor * unit, own: false } : undefined;
   };
-  const plain = pick(wf, model.bench.speed[mode]);
-  const enhanced = pick(`${wf}+pe`, model.bench.speedEnhanced?.[mode]);
-  return { ...(plain ? { plain } : {}), ...(enhanced ? { enhanced } : {}) };
+  const plain = pick(false);
+  const enhanced = pick(true);
+  const runs = Math.max(stats[statKey(wf, mp, false)]?.n ?? 0, stats[statKey(wf, mp, true)]?.n ?? 0);
+  return { ...(plain ? { plain } : {}), ...(enhanced ? { enhanced } : {}), runs };
 }
 
 /** Kurz und gerundet: unter 90 s in Sekunden, sonst Minuten mit einer Stelle. */

@@ -3,7 +3,7 @@ import { api, GEN_DRAG, imageUrl, refUrl, videoUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
 import { commercialLabel, ensureLicense } from './license.ts';
-import { BENCH_UNIT_MS, MIN_RUNS, benchTimes, shortDuration } from '../bench.ts';
+import { BENCH_UNIT_MS, MIN_RUNS, benchTimes, refFactor, shortDuration } from '../bench.ts';
 
 /** Ein Bild der Leiste; file wird erst beim Absenden hochgeladen. */
 interface Item {
@@ -578,6 +578,8 @@ export function inputPanel(
     if (!f) continue;
     forms.set(wf.name, f);
     sections.append(f.section);
+    // Stufe (Draft/Balanced/High) gewechselt: Zeitzeilen folgen
+    f.section.addEventListener('click', () => { if (f === active && model) showBench(model, mode, true); });
   }
 
   // Modelle nur mit Modi, die hier keinen Reiter haben, bleiben draußen
@@ -802,27 +804,29 @@ export function inputPanel(
     ownLine.classList.add('hidden');
     if (!b) return;
     const d = (ms: number) => shortDuration(ms, lang);
-    const speed = b.speed[md];
-    const enh = b.speedEnhanced?.[md];
-    const times = benchTimes(models, stats, m, md);
+    const mpVal = active?.fields.get('megapixels')?.get();
+    const mp = typeof mpVal === 'number' ? mpVal : undefined;
+    const at = mp === undefined ? '' : ` (${mp.toLocaleString(lang)} MP)`;
+    const speed = refFactor(b, md, mp, false);
+    const enh = refFactor(b, md, mp, true);
+    const times = benchTimes(models, stats, m, md, mp);
     // Referenz der RTX 3090, darunter RAM, dann die eigene GPU (gemessen oder geschätzt)
     const pair = (a: number | undefined, e: number | undefined) =>
       [a !== undefined ? d(a) : null, e !== undefined ? t('bench.enh', { s: d(e) }) : null].filter(Boolean).join(' · ');
-    const ref = speed === undefined ? null
-      : t('bench.ref', { s: pair(speed * BENCH_UNIT_MS, enh === undefined ? undefined : enh * BENCH_UNIT_MS) }) + (tx(b.basis) ? ` (${tx(b.basis)})` : '');
-    benchLine.textContent = ref ?? '';
-    benchLine.classList.toggle('hidden', !ref);
+    const ref = t('bench.ref', { at, s: speed === undefined ? t('bench.notYet')
+      : pair(speed * BENCH_UNIT_MS, enh === undefined ? undefined : enh * BENCH_UNIT_MS) + (tx(b.basis) ? ` (${tx(b.basis)})` : '') });
+    benchLine.textContent = ref;
     benchLine.title = t('bench.title');
     ramLine.textContent = t('bench.ram', { n: b.ramGB });
     ramLine.title = t('bench.title');
     const { plain, enhanced } = times;
     const wf = m.modes[md];
+    const mark = (v: { ms: number; own: boolean }) => d(v.ms) + (v.own ? '' : ` ${t('bench.est')}`);
     if (plain || enhanced) {
-      const est = !(plain?.own ?? true) || !(enhanced?.own ?? true);
-      ownLine.textContent = t(est ? 'bench.mineEst' : 'bench.mine', { s: pair(plain?.ms, enhanced?.ms) });
+      const parts = [plain ? mark(plain) : null, enhanced ? t('bench.enh', { s: mark(enhanced) }) : null].filter(Boolean).join(' · ');
+      ownLine.textContent = t('bench.mine', { at, s: parts });
     } else if (wf) {
-      const n = Math.max(stats[wf]?.n ?? 0, stats[`${wf}+pe`]?.n ?? 0);
-      ownLine.textContent = t('bench.minePending', { n: Math.min(n, MIN_RUNS), max: MIN_RUNS });
+      ownLine.textContent = t('bench.mine', { at, s: t('bench.pending', { n: Math.min(times.runs, MIN_RUNS), max: MIN_RUNS }) });
     }
     ownLine.title = t('bench.title');
     ownLine.classList.toggle('hidden', !(plain || enhanced || wf));
@@ -860,6 +864,7 @@ export function inputPanel(
     if (f.prompt) f.prompt.value = g.prompt;
     // Fehlt ein Wert (Bild älter als das Feld), gilt der Default – nicht der zufällig gerade eingestellte
     for (const [key, field] of f.fields) field.set(g.params[key] ?? f.wf.inputs[key]?.default);
+    if (f === active && model) showBench(model, mode, true);
     // Szene aus Figuren: Auswahl und Format zurück, die Leiste trug nur Zusatzbilder
     const figs = typeof g.params.figures === 'string' ? g.params.figures.split(',').filter(Boolean) : [];
     f.figures?.set(figs, typeof g.params.aspect === 'number' ? g.params.aspect : undefined);

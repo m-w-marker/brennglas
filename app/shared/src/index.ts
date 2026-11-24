@@ -107,14 +107,20 @@ export interface ModelSpec {
   bench?: ModelBench;
 }
 
-/** Eigene Laufzeiten je Workflow, Schlüssel `<workflow>` bzw. `<workflow>+pe` mit Prompt-Erweiterung: Median in ms. */
+/** Eigene Laufzeiten, Schlüssel aus statKey: Median in ms und Zahl der Läufe. */
 export type DurationStats = Record<string, { ms: number; n: number }>;
+
+/** Schlüssel der Laufzeit-Statistik: Workflow, Megapixel-Stufe (nur Bilder), +pe mit Prompt-Erweiterung. */
+export const statKey = (workflow: string, mp: number | undefined, enhanced: boolean): string =>
+  `${workflow}${mp === undefined ? '' : `@${mp}`}${enhanced ? '+pe' : ''}`;
 
 /** Gemessen auf RTX 3090 (plan_modellhilfe.md Phase 1): Tempo je Modus als Faktor, FLUX Text to Image 2 MP = 1. */
 export interface ModelBench {
   speed: Partial<Record<Mode, number>>;
   /** Mit Prompt-Erweiterung, wo der Modus sie hat. */
   speedEnhanced?: Partial<Record<Mode, number>>;
+  /** Andere Megapixel-Stufen (Schlüssel „1“, „4“ …); speed/speedEnhanced oben gelten für 2 MP. */
+  speedAt?: Record<string, { speed: Partial<Record<Mode, number>>; speedEnhanced?: Partial<Record<Mode, number>> }>;
   /** Woran der Faktor gemessen ist, wenn nicht 2 MP (Video: Auflösung, Länge). */
   basis?: Text;
   /** Empfohlener Arbeitsspeicher für 12–16-GB-Karten. */
