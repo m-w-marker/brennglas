@@ -3,7 +3,7 @@
   "name": "Z-Image Turbo",
   "short": "Z-Image",
   "vendor": "Tongyi-MAI (Alibaba)",
-  "order": 3,
+  "order": 1,
   "recommended": true,
   "modes": {
     "t2i": "zimage-t2i"

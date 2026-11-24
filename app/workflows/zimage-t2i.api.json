@@ -274,7 +274,7 @@
         "28",
         0
       ],
-      "lora_name": "zimage_awportrait.safetensors",
+      "lora_name": "zimage_pixelart.safetensors",
       "strength_model": 1
     },
     "class_type": "LoraLoaderModelOnly",

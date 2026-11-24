@@ -86,6 +86,8 @@ No renderer? Claude can turn the first layout frame into a photo, as in the clip
 
 ## Claude as your director
 
+[![m-w-marker/brennglas MCP server](https://glama.ai/mcp/servers/m-w-marker/brennglas/badges/score.svg)](https://glama.ai/mcp/servers/m-w-marker/brennglas)
+
 With the built-in MCP server Claude plans a shot list, renders and checks start images, animates the shots, redoes weak ones and cuts the clip with music, logo and end card. Everything shows up live in your gallery. Try:
 
 > Make a 15 second spot for our ceramics brand HALDE. Three shots of the blue vase in a calm Japandi living room, golden hour light, our logo in the corner and an end card.
@@ -108,7 +110,7 @@ Replace `<brennglas folder>` with your path, every backslash twice. With your ow
 }
 ```
 
-Tools: `generate`, `wait`, `inspect_image` (full resolution crops), `figures` and `create_figure` (characters), `last_frame`, `concat` (cut, transitions, music, logo, end card), `list_models`, `gallery`, `enhance_prompt`. The server also gives Claude a short directing guide.
+Tools: `generate`, `upscale` (images up to 8k, videos up to UHD), `wait`, `get_item`, `cancel_job`, `inspect_image` (full resolution crops), `figures`, `create_figure` and `delete_figure` (characters), `last_frame`, `concat` (cut, transitions, music, logo, end card), `list_models`, `gallery`, `delete_item`, `enhance_prompt`. The server also gives Claude a short directing guide.
 
 If the tools do not show up, Settings → Developer shows the log; usually a path has single backslashes or Brennglas is not running.
 Other local (stdio) MCP clients such as Codex CLI or LM Studio should work but are not tested. Brennglas only listens on your own computer.
@@ -140,6 +142,16 @@ Missing a model? [Open an issue](https://github.com/m-w-marker/brennglas/issues)
 Gated on Hugging Face: [FLUX 3 Image Klein](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy), [LTX-2.5 22B](https://huggingface.co/Lightricks/LTX-2.5), [LTX-2.5 Layout-To-Render](https://huggingface.co/Lightricks/LTX-2.5).
 Log in, open the model page and accept the license once. Then their links work in your browser.
 
+<details><summary>Z-Image Turbo</summary>
+
+| File | Folder |
+|---|---|
+| [z_image_turbo_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors) | `diffusion_models` |
+| [qwen_3_4b_fp8_mixed.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors) | `text_encoders` |
+| [ae.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors) | `vae` |
+
+</details>
+
 <details><summary>Krea 2 Turbo</summary>
 
 | File | Folder |
@@ -147,6 +159,17 @@ Log in, open the model page and accept the license once. Then their links work i
 | [krea2_turbo_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors) | `diffusion_models` |
 | [qwen3vl_4b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/text_encoders/qwen3vl_4b_fp8_scaled.safetensors) | `text_encoders` |
 | [qwen_image_vae.safetensors](https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors) | `vae` |
+
+</details>
+
+<details><summary>FLUX 3 Image Klein</summary>
+
+| File | Folder |
+|---|---|
+| [flux3-image-klein-int8-convrot.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors) | `diffusion_models` |
+| [qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors) | `text_encoders` |
+| [qwen3vl_4b_int8_convrot.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors) | `text_encoders` |
+| [flux2-vae.safetensors](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) | `vae` |
 
 </details>
 
@@ -159,27 +182,6 @@ Log in, open the model page and accept the license once. Then their links work i
 | [qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3.5_9b_qwen_image_2.1_pe_t2i.int8_convrot.safetensors) | `text_encoders` |
 | [qwen3vl_8b_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/text_encoders/qwen3vl_8b_int8_convrot.safetensors) | `text_encoders` |
 | [qwen_image_2.1_vae_bf16.safetensors](https://huggingface.co/Comfy-Org/Qwen-Image-2.1/resolve/main/vae/qwen_image_2.1_vae_bf16.safetensors) | `vae` |
-
-</details>
-
-<details><summary>Z-Image Turbo</summary>
-
-| File | Folder |
-|---|---|
-| [z_image_turbo_int8_convrot.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_int8_convrot.safetensors) | `diffusion_models` |
-| [qwen_3_4b_fp8_mixed.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b_fp8_mixed.safetensors) | `text_encoders` |
-| [ae.safetensors](https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors) | `vae` |
-
-</details>
-
-<details><summary>FLUX 3 Image Klein</summary>
-
-| File | Folder |
-|---|---|
-| [flux3-image-klein-int8-convrot.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/diffusion_models/flux3-image-klein-int8-convrot.safetensors) | `diffusion_models` |
-| [qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3.5_9b_flux3_prompt_upsampler_w4a8.safetensors) | `text_encoders` |
-| [qwen3vl_4b_int8_convrot.safetensors](https://huggingface.co/black-forest-labs/flux-3-image-klein-comfy/resolve/main/text_encoders/qwen3vl_4b_int8_convrot.safetensors) | `text_encoders` |
-| [flux2-vae.safetensors](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) | `vae` |
 
 </details>
 

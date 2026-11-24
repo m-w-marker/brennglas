@@ -3,7 +3,7 @@
   "name": "Qwen-Image-2.1 Turbo",
   "short": "Qwen 2.1",
   "vendor": "Alibaba Qwen",
-  "order": 2,
+  "order": 4,
   "modes": {
     "t2i": "qwen21-t2i",
     "edit": "qwen21-edit"

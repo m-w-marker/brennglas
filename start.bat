@@ -29,13 +29,21 @@ if not errorlevel 1 (
   start "ComfyUI" /d "%COMFY_DIR%" "%COMFY_DIR%\python_embeded\python.exe" -s ComfyUI\main.py --windows-standalone-build --disable-auto-launch
 )
 
+rem Backend und Web einzeln: laeuft nur einer noch, scheitert der andere sonst am Port und reisst ihn mit (--parallel)
+rem Direkt per corepack statt "pnpm dev": das Skript dev riefe pnpm ohne corepack auf, das fehlt ohne globales pnpm
 call :listening %PORT%
 if not errorlevel 1 (
-  echo Brennglas is already running.
+  echo Brennglas backend is already running.
 ) else (
-  echo Starting Brennglas ...
-  rem Direkt -r statt "pnpm dev": das Skript dev riefe pnpm ohne corepack auf, das fehlt ohne globales pnpm
-  start "Brennglas" cmd /k corepack pnpm -r --parallel dev
+  echo Starting Brennglas backend ...
+  start "Brennglas backend" cmd /k corepack pnpm --filter @brennglas/server dev
+)
+call :listening 5173
+if not errorlevel 1 (
+  echo Brennglas web is already running.
+) else (
+  echo Starting Brennglas web ...
+  start "Brennglas web" cmd /k corepack pnpm --filter @brennglas/web dev
 )
 
 rem Wait for web and backend (the page fails without the backend); ComfyUI is joined later by the backend itself.
@@ -48,7 +56,7 @@ for /l %%i in (1,1,60) do (
   )
   timeout /t 1 /nobreak >nul
 )
-echo Brennglas not reachable - check the "Brennglas" window.
+echo Brennglas not reachable - check the "Brennglas backend" and "Brennglas web" windows.
 pause
 exit /b 1
 

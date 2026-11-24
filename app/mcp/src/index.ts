@@ -4,7 +4,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { MAX_EXTRA_VIEWS } from '@brennglas/shared';
 import type { FieldSpec, Figure, Generation, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { z } from 'zod';
-import { BASE, backend, en, resolveEnum, toSource, toVideo } from './backend.ts';
+import { BASE, backend, en, galleryVideoFile, resolveEnum, toSource, toVideo, upscaleKind } from './backend.ts';
 
 // Regie-Anleitung: Claude bekommt sie in jedem Projekt, sobald der Server verbunden ist
 const INSTRUCTIONS = `Brennglas renders images and videos locally on the user's GPU; every result shows up live in the user's gallery.
@@ -62,7 +62,7 @@ Edit strength (denoise, 0.8 to 1): 1 is the free edit, below that the edit start
 perspective. Around 0.9 turns a 3D render into a photo without rebuilding it; below 0.85 hardly anything changes.
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
-const server = new McpServer({ name: 'brennglas', version: '0.8.3' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'brennglas', version: '0.9.0' }, { instructions: INSTRUCTIONS });
 
 const text = (t: string): CallToolResult => ({ content: [{ type: 'text', text: t }] });
 const fail = (e: unknown): CallToolResult => ({ content: [{ type: 'text', text: (e as Error).message }], isError: true });
@@ -168,6 +168,8 @@ server.registerTool('generate', {
     + 'Waits up to wait_seconds, then returns the result with a preview image, or the id to pass to wait. Videos take 30 s to several minutes. '
     + 'Camera moves in image to video (LTX): large moves (arc, orbit, crane, drone, bullet time) only show from about 5 s; with 3 s the model '
     + 'falls back to a gentle push-in. For those use duration >= 5 and either pe=true or a detailed prompt that also describes the camera path. '
+    + 'Runs locally on the user\'s GPU (no credits); jobs queue and render one after another, a running one can be stopped with cancel_job. '
+    + 'With figures, aspect sets the scene format and the figures\' sheets are added as references. For upscaling use upscale. '
     + 'Fails right away on an unknown workflow, field option or image; a failed render returns status "error" with the reason.',
   inputSchema: {
     workflow: z.string().describe('Workflow name, e.g. "zimage-t2i", "ltx25-i2v", "wan22cam-i2v"'),
@@ -204,12 +206,55 @@ server.registerTool('generate', {
   }
 });
 
+server.registerTool('upscale', {
+  title: 'Upscale an image or video',
+  description: 'Upscales with SeedVR2. An image (gallery id, "upload:…" ref or image file) becomes a new gallery item up to 8192 px on the '
+    + 'long edge, in one to a few minutes. A video (gallery id of a video, a video file or a folder of frames) is upscaled frame by '
+    + 'frame up to 3840 px into the folder dst; that takes far longer than an image, so start it with wait_seconds 0 and '
+    + 'check with get_item. A second run into the same dst skips finished frames. Upscale finished shots, not start images: '
+    + 'the video models render at their own size. Fails if SeedVR2 is not installed or the source cannot be read.',
+  inputSchema: {
+    source: z.string().describe('Gallery id, "upload:…" ref, or absolute path of an image, a video file or a folder of frames'),
+    long_edge: z.number().int().min(512).max(8192).optional().describe('Target size of the long edge in px; default 6144 for images, 3840 (max) for videos'),
+    strength: z.number().min(0).max(1).optional().describe('Image only: share of SeedVR2 against plain Lanczos scaling, default 0.5; lower if it over-sharpens'),
+    dst: z.string().optional().describe('Video only, required there: absolute path of the target folder, created if missing'),
+    video: z.enum(['mp4', 'prores', 'none']).default('mp4').describe('Video only: file written next to the frames; none = frames only'),
+    frames: z.enum(['jpg', 'png16', 'png8']).default('jpg').describe('Video only: format of the single frames; png16 for grading, about 4x larger'),
+    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the result; 0 = start only, then use wait or get_item'),
+  },
+}, async ({ source, long_edge, strength, dst, video, frames, wait_seconds }) => {
+  try {
+    const models = await backend.models();
+    const m = models.find((x) => x.modes.upscale);
+    if (!m?.modes.upscale) throw new Error('No upscale model loaded');
+    if (m.missing?.length) throw new Error(`SeedVR2 is not installed, missing: ${m.missing.join(', ')}`);
+    const file = upscaleKind(source) === 'video';
+    const galleryVideo = !file && /^[0-9a-f-]{36}$/i.test(source) && (await backend.generation(source)).video;
+    if (file || galleryVideo) {
+      if (!dst) throw new Error('dst (target folder) is required for a video');
+      if (!m.modes.video) throw new Error('Video upscale workflow not loaded');
+      const src = file ? source : await galleryVideoFile(source);
+      const params: Record<string, ParamValue> = { src, dst, still: frames, format: video === 'none' ? 'png' : video,
+        ...(long_edge ? { size: Math.min(long_edge, 3840) } : {}) };
+      const { id } = await backend.generate({ workflow: m.modes.video, params });
+      return await report(await waitFor(id, wait_seconds));
+    }
+    if (dst) throw new Error('dst only applies to videos; an upscaled image goes to the gallery');
+    const params: Record<string, ParamValue> = { ...(long_edge ? { target: long_edge } : {}), ...(strength === undefined ? {} : { strength }) };
+    const { id } = await backend.generate({ workflow: m.modes.upscale, params, images: [await toSource(source)] });
+    return await report(await waitFor(id, wait_seconds));
+  } catch (e) {
+    return fail(e);
+  }
+});
+
 const figureLine = (f: Figure) => JSON.stringify({ id: f.id, name: f.name, kind: f.kind, sheet: f.sheetId, sheetStatus: f.sheet?.status ?? 'missing' });
 
 server.registerTool('figures', {
   title: 'List characters and products',
   description: 'Lists the saved figures (recurring people and products) with name, kind and the gallery id of their reference sheet. '
-    + 'Pass a name in generate.figures to put the figure into a new scene. Returns one JSON line per figure; to add one use create_figure.',
+    + 'Pass a name in generate.figures to put the figure into a new scene. Returns one JSON line per figure, newest first, or a hint '
+    + 'when there are none; to add one use create_figure, to remove one delete_figure.',
   annotations: { readOnlyHint: true },
 }, async () => {
   try {
@@ -224,8 +269,9 @@ server.registerTool('create_figure', {
   title: 'Create a character or product',
   description: 'Saves a recurring character, creature or product for consistent shots: renders a reference sheet (four views in a fixed '
     + 'grid, in the style of the portrait) and returns its preview. The face should be clearly visible; with flux3-edit a close-up works '
-    + 'best. Takes about 30 to 90 s. Instead of rendering, views (one photo per panel) or sheet (a finished sheet) take real photos '
-    + 'as they are. Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
+    + 'best. Takes about 30 to 90 s. To use real photos instead of rendering, pass views (one photo per panel) or sheet (a finished '
+    + 'sheet); they are placed unchanged. Afterwards refer to the figure by its name in generate.figures. To change a figure, delete it '
+    + 'with delete_figure and create it again. Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
   inputSchema: {
     name: z.string().min(1).max(60).describe('Short name used in prompts, e.g. "Mara"'),
     kind: z.enum(['person', 'creature', 'product']).default('person')
@@ -266,11 +312,30 @@ server.registerTool('create_figure', {
   }
 });
 
+server.registerTool('delete_figure', {
+  title: 'Delete a character or product',
+  description: 'Removes a saved figure by name or id, e.g. a failed one or one to create again with other settings. Only call it when the '
+    + 'user asks. Its reference sheet stays in the gallery (delete it afterwards with delete_item if wanted); scenes already rendered '
+    + 'with the figure are not touched. Returns a confirmation; fails on an unknown name with the list of known figures.',
+  inputSchema: { figure: z.string().describe('Name or id of the figure, see figures') },
+  annotations: { destructiveHint: true, idempotentHint: true },
+}, async ({ figure }) => {
+  try {
+    const [f] = await resolveFigures([figure]);
+    if (!f) throw new Error(`Unknown figure "${figure}"`);
+    await backend.deleteFigure(f.id);
+    return text(`Figure "${f.name}" deleted; its sheet ${f.sheetId} is still in the gallery.`);
+  } catch (e) {
+    return fail(e);
+  }
+});
+
 server.registerTool('wait', {
   title: 'Wait for a job',
   description: 'Blocks until a queued or running job finishes, then returns its result: status, size, image/video links and a 512 px preview. '
     + 'Use it when generate or create_figure came back with "Still rendering". If the timeout passes first, the status is still '
-    + 'queued or running; call wait again with the same id. To look at a job without waiting, use get_item.',
+    + 'queued or running; call wait again with the same id. A job cancelled meanwhile returns at once with status "cancelled", '
+    + 'a failed one with status "error" and the reason; an unknown id fails. To look at a job without waiting, use get_item.',
   inputSchema: {
     id: z.string().describe('Gallery id returned by generate, create_figure or gallery'),
     timeout_seconds: z.number().min(1).max(600).default(180).describe('Longest wait; videos often need 60 to 300 s'),
@@ -287,7 +352,8 @@ server.registerTool('wait', {
 server.registerTool('get_item', {
   title: 'Get one gallery item',
   description: 'Returns one gallery item right away, without waiting: status, workflow, prompt, size, image/video links and, when done, '
-    + 'a 512 px preview. Use it to look up an id from gallery or to check a job\'s progress; to wait for the end use wait.',
+    + 'a 512 px preview (queued or running jobs have none yet). Use it to look up an id from gallery or to check a job\'s progress; '
+    + 'to wait for the end use wait. Fails on an unknown id.',
   inputSchema: { id: z.string().describe('Gallery id') },
   annotations: { readOnlyHint: true },
 }, async ({ id }) => {
@@ -301,7 +367,8 @@ server.registerTool('get_item', {
 server.registerTool('cancel_job', {
   title: 'Cancel a job',
   description: 'Cancels a queued or running job (image, video or upscale); the item stays in the gallery with status "cancelled". '
-    + 'Use it when a job was started with wrong settings or takes too long. Finished items are not affected; to remove one use delete_item.',
+    + 'Use it when a job was started with wrong settings or takes too long. Returns the item with its new status. Fails on an unknown id '
+    + 'and on a job that already ended (done, error or cancelled); to remove a finished item use delete_item.',
   inputSchema: { id: z.string().describe('Gallery id of the queued or running job') },
   annotations: { destructiveHint: false, idempotentHint: true },
 }, async ({ id }) => {
@@ -316,8 +383,8 @@ server.registerTool('cancel_job', {
 server.registerTool('delete_item', {
   title: 'Delete a gallery item',
   description: 'Permanently deletes a finished, failed or cancelled gallery item together with its image and video files; this cannot be undone. '
-    + 'Only call it when the user asks to delete that item. Running jobs must be cancelled first (cancel_job), and the reference sheet '
-    + 'of a figure cannot be deleted while the figure exists.',
+    + 'Only call it when the user asks to delete that item. Returns "Deleted <id>"; fails with the reason on an unknown id, on a running '
+    + 'job (cancel it first with cancel_job) and on the reference sheet of a figure (delete the figure first with delete_figure).',
   inputSchema: { id: z.string().describe('Gallery id of the item to delete') },
   annotations: { destructiveHint: true, idempotentHint: true },
 }, async ({ id }) => {
@@ -333,8 +400,9 @@ server.registerTool('enhance_prompt', {
   title: 'Write a prompt with the local language model',
   description: 'Turns a short idea (any language) into a detailed English prompt for a target: "Generate image", "Edit image", '
     + '"Text to video (LTX)", "Image to video (LTX)" or "Wan camera move". Optional image (gallery id or path) for image-based targets. '
-    + 'large=true uses Qwen 3.5 9B instead of Gemma 4 E2B. Takes 1 to 4 seconds. You may also write prompts yourself; this is a helper. '
-    + 'Returns the prompt as plain text, nothing is added to the gallery.',
+    + 'large=true uses Qwen 3.5 9B instead of Gemma 4 E2B. Takes 1 to 4 seconds, each call words it differently. '
+    + 'Skip it when you already wrote a detailed prompt yourself and pass that straight to generate. Returns the prompt as plain text, '
+    + 'nothing is added to the gallery; fails on an unknown target or when the language model is not installed.',
   inputSchema: {
     idea: z.string().describe('Short idea or rough prompt, any language'),
     target: z.string().default('Generate image').describe('What the prompt is for, one of the names above'),
@@ -363,7 +431,8 @@ server.registerTool('inspect_image', {
   description: 'Returns a region of a gallery image (or a video\'s preview frame) at full resolution, up to 1024 px. '
     + 'The previews from generate are only 512 px; use this to check hands, faces, products and lettering before animating. '
     + 'Region as fractions of the image: x, y = top-left corner, w, h = size (0 to 1). Default: the whole image. '
-    + 'Returns the crop as an inline WebP image; read-only, fails on an unknown id.',
+    + 'Returns the crop as an inline WebP image; read-only, fails on an unknown id. For a first look at the whole result the preview '
+    + 'from generate, wait or get_item is enough; use this for the details.',
   inputSchema: {
     id: z.string().describe('Gallery id of an image or video'),
     x: z.number().min(0).max(1).default(0).describe('Left edge as a fraction of the width'),
@@ -384,7 +453,8 @@ server.registerTool('last_frame', {
   title: 'Last frame of a video',
   description: 'Extracts the last frame of a finished video as a new start image, for a follow-up shot that continues seamlessly. '
     + 'Returns an image reference ("upload:…") and its size, to pass in generate.images; it is not added to the gallery. '
-    + 'Fails if the id is not a finished video.',
+    + 'Use the id of a finished shot from generate, wait or gallery. Fails if the id is not a finished video. '
+    + 'For a cut to a separate scene start from a new image instead.',
   inputSchema: { id: z.string().describe('Gallery id of a finished video') },
 }, async ({ id }) => {
   try {
@@ -398,8 +468,9 @@ server.registerTool('last_frame', {
 server.registerTool('concat', {
   title: 'Join shots into one clip',
   description: 'Joins finished videos (gallery ids, in order) into one MP4 or WebM that appears in the gallery. Shots are matched to the first '
-    + 'shot\x27s size and frame rate; shots without sound get silence. fade: seconds of the transition between shots, 0 = hard cut. '
-    + 'Use it as the last step of a film, after every shot was checked. Renders right away (seconds to a few minutes) and returns '
+    + 'shot\x27s size and frame rate; shots without sound get silence. '
+    + 'Use it as the last step of a film, after every shot was checked; it does not change the shots, redo a weak one with generate first. '
+    + 'Renders right away (seconds to a few minutes) and returns '
     + 'the new gallery id with a preview; fails if an id is unknown or not a finished video, or a music/logo file cannot be read.',
   inputSchema: {
     ids: z.array(z.string()).min(2).max(30).describe('Gallery ids of finished videos, in playing order'),
@@ -435,8 +506,9 @@ server.registerTool('concat', {
 server.registerTool('gallery', {
   title: 'Recent gallery items',
   description: 'Lists recent results (newest first) with id, workflow, status and prompt, optionally filtered by a search text. '
-    + 'Use the ids as images in generate, e.g. to animate an image or edit it further. Returns one line per item; '
-    + 'for the details and preview of one item use get_item.',
+    + 'Use the ids as images in generate, e.g. to animate an image or edit it further. Returns one line per item (at most 50, no paging); '
+    + 'search matches any part of the prompt, ignoring case. For the details and preview of one item use get_item, '
+    + 'for characters and products figures.',
   inputSchema: {
     limit: z.number().min(1).max(50).default(10).describe('How many items, newest first'),
     search: z.string().optional().describe('Only items whose prompt or expanded prompt contains this text'),

@@ -3,7 +3,7 @@
   "name": "Krea 2 Turbo",
   "short": "Krea 2",
   "vendor": "Krea",
-  "order": 1,
+  "order": 2,
   "modes": {
     "t2i": "krea2-t2i"
   },

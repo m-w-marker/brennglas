@@ -3,7 +3,7 @@
   "name": "FLUX 3 Image Klein",
   "short": "FLUX 3",
   "vendor": "Black Forest Labs",
-  "order": 4,
+  "order": 3,
   "recommended": true,
   "modes": {
     "t2i": "flux3-t2i",

@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { extname } from 'node:path';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { extname, isAbsolute, join } from 'node:path';
 import type { FieldSpec, Figure, FigureRequest, GenerateRequest, Generation, ImageSource, ModelInfo, Page, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Spricht nur mit dem eigenen Backend, nie direkt mit ComfyUI. */
@@ -75,6 +76,25 @@ export async function toVideo(ref: string): Promise<string> {
   if (!type) throw new Error(`${ref}: unsupported video type (mp4, webm, mov)`);
   const up = await call<UploadResult>('/api/upload', { method: 'POST', headers: { 'content-type': type }, body: readFileSync(ref) });
   return up.inputId;
+}
+
+// gleiche Endungen wie isVideoFile im Server (video-plan.ts)
+const VIDEO_SOURCE = /\.(mp4|mov|mkv|webm|avi|m4v)$/i;
+
+/** Hochskalieren: Frame-Ordner oder Videodatei → Video-Job, alles andere (Galerie-ID, Upload, Bilddatei) → Bild. */
+export function upscaleKind(ref: string): 'video' | 'image' {
+  if (!isAbsolute(ref) || !existsSync(ref)) return 'image';
+  const s = statSync(ref);
+  return s.isDirectory() || (s.isFile() && VIDEO_SOURCE.test(ref)) ? 'video' : 'image';
+}
+
+/** Galerie-Video als Datei für den Video-Job; fester Name, damit ein zweiter Lauf im selben Ziel fortsetzt statt abzulehnen. */
+export async function galleryVideoFile(id: string): Promise<string> {
+  const res = await fetch(`${BASE}/api/images/${encodeURIComponent(id)}/video`).catch(() => null);
+  if (!res?.ok) throw new Error(`${id}: no video file in the gallery`);
+  const file = join(tmpdir(), `brennglas-${id}${res.headers.get('content-type')?.includes('webm') ? '.webm' : '.mp4'}`);
+  if (!existsSync(file)) writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+  return file;
 }
 
 export const en = (t: Text | undefined): string | undefined => (t === undefined ? undefined : typeof t === 'string' ? t : t.en);
