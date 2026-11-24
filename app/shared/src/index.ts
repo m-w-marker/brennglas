@@ -104,6 +104,21 @@ export interface ModelSpec {
   /** Erkennung eigener LoRAs: ein Schlüssel passt auf key (RegExp), seine lora_A/down-Matrix ist width breit. */
   lora?: { key: string; width: number };
   license: ModelLicense;
+  bench?: ModelBench;
+}
+
+/** Eigene Laufzeiten je Workflow, Schlüssel `<workflow>` bzw. `<workflow>+pe` mit Prompt-Erweiterung: Median in ms. */
+export type DurationStats = Record<string, { ms: number; n: number }>;
+
+/** Gemessen auf RTX 3090 (plan_modellhilfe.md Phase 1): Tempo je Modus als Faktor, FLUX Text to Image 2 MP = 1. */
+export interface ModelBench {
+  speed: Partial<Record<Mode, number>>;
+  /** Mit Prompt-Erweiterung, wo der Modus sie hat. */
+  speedEnhanced?: Partial<Record<Mode, number>>;
+  /** Woran der Faktor gemessen ist, wenn nicht 2 MP (Video: Auflösung, Länge). */
+  basis?: Text;
+  /** Empfohlener Arbeitsspeicher für 12–16-GB-Karten. */
+  ramGB: number;
 }
 
 /** Eintrag der Warteschlange: laufend zuerst, dann wartend in Ausführungsreihenfolge. */

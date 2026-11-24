@@ -20,5 +20,14 @@
       "de": "Freie Lizenz: kommerzielle Nutzung, Änderung und Weitergabe erlaubt, Lizenz- und Copyright-Hinweis beibehalten.",
       "en": "Permissive license: commercial use, modification and redistribution allowed; keep the license and copyright notice."
     }
+  },
+  "bench": {
+    "speed": {
+      "t2i": 1
+    },
+    "speedEnhanced": {
+      "t2i": 3.7
+    },
+    "ramGB": 32
   }
 }

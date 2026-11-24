@@ -1,8 +1,8 @@
 {
   "name": "ltx25-i2v",
   "label": {
-    "de": "Bild zu Video",
-    "en": "Image to video"
+    "de": "Image to Video",
+    "en": "Image to Video"
   },
   "submit": {
     "de": "Video erzeugen",

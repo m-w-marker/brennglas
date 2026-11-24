@@ -20,5 +20,16 @@
       "de": "Modell nur für Forschung und Erprobung, nicht kommerziell; kommerziell nur mit eigener Lizenz von Alibaba. Zu den erzeugten Bildern äußert sich der Text nicht ausdrücklich.",
       "en": "The model is for research and evaluation only, not commercial; commercial use needs a separate license from Alibaba. The text says nothing explicit about generated images."
     }
+  },
+  "bench": {
+    "speed": {
+      "t2i": 0.9,
+      "edit": 1.9
+    },
+    "speedEnhanced": {
+      "t2i": 2.5,
+      "edit": 3.8
+    },
+    "ramGB": 32
   }
 }

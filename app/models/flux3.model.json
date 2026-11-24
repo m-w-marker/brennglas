@@ -21,5 +21,16 @@
       "de": "Kommerziell nur bei unter 5 Mio. USD Jahresumsatz (samt verbundenen Firmen), dann mit Pflicht zu Inhaltsfiltern oder Prüfung der Bilder (Abschnitt 2.e). Bilder gelten nicht als abgeleitetes Werk.",
       "en": "Commercial use only below USD 5M annual revenue (including affiliates), and then content filters or a review of the outputs are mandatory (section 2.e). Generated images are not derivatives."
     }
+  },
+  "bench": {
+    "speed": {
+      "t2i": 1,
+      "edit": 2.4
+    },
+    "speedEnhanced": {
+      "t2i": 1.4,
+      "edit": 2.7
+    },
+    "ramGB": 32
   }
 }

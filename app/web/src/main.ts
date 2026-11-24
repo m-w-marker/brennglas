@@ -172,6 +172,7 @@ try {
     result.onEvent(ev);
     gal?.onEvent(ev);
     figs?.onEvent(ev);
+    if (ev.type === 'done') input?.refreshTimes();
   }, () => {
     void figs?.load();
     syncHealth();

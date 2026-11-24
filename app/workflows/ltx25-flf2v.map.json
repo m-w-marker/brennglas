@@ -1,8 +1,8 @@
 {
   "name": "ltx25-flf2v",
   "label": {
-    "de": "Start + Ende",
-    "en": "First + last frame"
+    "de": "First + Last Frame",
+    "en": "First + Last Frame"
   },
   "submit": {
     "de": "Video erzeugen",

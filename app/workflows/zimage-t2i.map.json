@@ -1,7 +1,7 @@
 {
   "name": "zimage-t2i",
   "label": {
-    "de": "Text zu Bild",
+    "de": "Text to Image",
     "en": "Text to Image"
   },
   "inputs": {

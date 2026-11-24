@@ -16,5 +16,15 @@
       "de": "Kostenlos, auch kommerziell, solange das Unternehmen unter 10 Mio. US-$ Jahresumsatz bleibt; darüber nur mit Lizenz von Lightricks.",
       "en": "Free, including commercial use, while the company stays below US$10M annual revenue; above that only with a licence from Lightricks."
     }
+  },
+  "bench": {
+    "speed": {
+      "l2v": 10
+    },
+    "basis": {
+      "de": "720p, 5 s",
+      "en": "720p, 5 s"
+    },
+    "ramGB": 64
   }
 }

@@ -414,7 +414,8 @@ input[type='range'] { flex: 1; accent-color: var(--accent); }
 .cut-total { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; margin-left: auto; }
 .cut-total.bad { color: var(--warn); }
 .cut-head .button { padding: 4px 10px; }
-.cut-player { min-height: 180px; }
+.cut-screen { position: relative; flex: 1; min-height: 180px; display: flex; }
+.cut-flag { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 4px 12px; background: rgba(50, 50, 50, .85); color: #ff8a1f; font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; pointer-events: none; max-width: 90%; text-align: center; }
 .cut-inspect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface); }
 .cut-inspect-title { font-size: 12px; letter-spacing: .06em; white-space: nowrap; }
 .cut-inspect label, .cut-inspect .field { flex-direction: row; align-items: center; gap: 8px; }

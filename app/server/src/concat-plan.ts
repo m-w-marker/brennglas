@@ -29,11 +29,12 @@ export interface Join {
   type?: Transition;
 }
 
-/** Kürzen und Tempo eines Shots; start/end in Sekunden der Quelle, speed 0,5 – 2. */
+/** Kürzen, Tempo und Richtung eines Shots; start/end in Sekunden der Quelle, speed 0,5 – 2, reverse ohne Ton. */
 export interface ShotEdit {
   start?: number;
   end?: number;
   speed?: number;
+  reverse?: boolean;
 }
 
 /** Zusätze nach dem Schnitt; input = Index der ffmpeg-Eingabe (nach den Shots). */
@@ -102,11 +103,12 @@ export function planConcat(clips: ClipInfo[], joins: number | (number | Join)[],
     const len = round(lengths[i] as number);
     const speed = e.speed ?? 1;
     const cut = e.start !== undefined || e.end !== undefined;
-    const vPre = cut || speed !== 1
-      ? `${cut ? `trim=start=${e.start ?? 0}:end=${e.end ?? c.duration},` : ''}setpts=${speed === 1 ? 'PTS-STARTPTS' : `(PTS-STARTPTS)/${speed}`},` : '';
+    // grenze: reverse puffert den ganzen Shot im RAM (~1–2 GB bei 10 s 1080p), ab Shots über ~30 s in Stücken umdrehen
+    const vPre = cut || speed !== 1 || e.reverse
+      ? `${cut ? `trim=start=${e.start ?? 0}:end=${e.end ?? c.duration},` : ''}${e.reverse ? 'setpts=PTS-STARTPTS,reverse,' : ''}setpts=${speed === 1 ? 'PTS-STARTPTS' : `(PTS-STARTPTS)/${speed}`},` : '';
     const aPre = `${cut ? `atrim=start=${e.start ?? 0}:end=${e.end ?? c.duration},asetpts=PTS-STARTPTS,` : ''}${speed !== 1 ? `atempo=${speed},` : ''}`;
     parts.push(`[${i}:v]${vPre}scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p,settb=AVTB[v${i}]`);
-    parts.push(c.hasAudio
+    parts.push(c.hasAudio && !e.reverse
       // apad: LTX-Ton ist ~30 ms kürzer als das Bild; ohne Auffüllen läuft der Ton bei jeder Blende weiter vor
       ? `[${i}:a]${aPre}aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=duration=${len},apad=whole_dur=${len}[a${i}]`
       : `anullsrc=r=48000:cl=stereo,atrim=duration=${len},aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`);

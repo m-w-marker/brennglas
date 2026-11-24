@@ -11,12 +11,13 @@ const KIND_KEY = {
   cut: 'cut.kind.cut', fade: 'cut.kind.fade', fadeblack: 'cut.kind.fadeblack', fadewhite: 'cut.kind.fadewhite', wipeleft: 'cut.kind.wipeleft', slideleft: 'cut.kind.slideleft',
 } as const;
 const SPEEDS = [0.5, 0.75, 1, 1.5, 2];
+const DIRS = ['fwd', 'rev'] as const;
 const FADES = [0, 0.5, 1, 2];
 const CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 type Corner = (typeof CORNERS)[number];
 const CORNER_KEY = { tl: 'cut.pos.tl', tr: 'cut.pos.tr', bl: 'cut.pos.bl', br: 'cut.pos.br' } as const;
 
-interface Shot { id: string; duration: number | null; start: number; end: number | null; speed: number }
+interface Shot { id: string; duration: number | null; start: number; end: number | null; speed: number; reverse: boolean }
 interface Trans { kind: Kind; duration: number }
 interface State {
   shots: Shot[];
@@ -56,7 +57,7 @@ function sane(raw: unknown): State {
     const s = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
     if (typeof s.id !== 'string') return [];
     const duration = typeof s.duration === 'number' && s.duration > 0 ? s.duration : null;
-    return [{ id: s.id, duration, start: num(s.start, 0, 0, 1e6), end: typeof s.end === 'number' ? s.end : null, speed: SPEEDS.includes(s.speed as number) ? (s.speed as number) : 1 }];
+    return [{ id: s.id, duration, start: num(s.start, 0, 0, 1e6), end: typeof s.end === 'number' ? s.end : null, speed: SPEEDS.includes(s.speed as number) ? (s.speed as number) : 1, reverse: s.reverse === true }];
   });
   const def = trans(o.def, f.def);
   const m = (o.music && typeof o.music === 'object' ? o.music : {}) as Record<string, unknown>;
@@ -133,11 +134,14 @@ export function cutView(onMarks: () => void): Cut {
   const status = h('div', { class: 'status' });
   const total = h('div', { class: 'cut-total' });
   const player = h('video', { class: 'player cut-player', controls: true, playsinline: true, preload: 'metadata' });
+  // Browser spielen nicht rückwärts: Schild über dem Bild statt Hinweis im Prüfbereich
+  const flag = h('div', { class: 'cut-flag hidden' }, t('cut.reverseFlag'));
+  const screen = h('div', { class: 'cut-screen' }, player, flag);
   const inspector = h('div', { class: 'cut-inspect' });
   const strip = h('div', { class: 'cut-strip' });
   const error = h('p', { class: 'form-error' });
   const undo = h('button', { type: 'button', class: 'button ghost hidden' }, t('cut.undoOpen'));
-  const stage = h('section', { class: 'result cut-stage hidden' }, h('div', { class: 'cut-head' }, status, undo, total), player, inspector, strip, error);
+  const stage = h('section', { class: 'result cut-stage hidden' }, h('div', { class: 'cut-head' }, status, undo, total), screen, inspector, strip, error);
 
   // Nur beim Abspielen in der Kürzung schleifen; ein Seek ans Ende (Ende-Regler) löst selbst timeupdate aus
   player.addEventListener('timeupdate', () => {
@@ -152,7 +156,8 @@ export function cutView(onMarks: () => void): Cut {
       .catch(() => { missing.add(s.id); drawStrip(); });
   }
 
-  function play(url: string, text: string, at = 0, rate = 1) {
+  function play(url: string, text: string, at = 0, rate = 1, reverse = false) {
+    flag.classList.toggle('hidden', !reverse);
     if (player.getAttribute('src') !== url) player.src = url;
     player.playbackRate = rate;
     const seek = () => { player.currentTime = at; };
@@ -177,9 +182,9 @@ export function cutView(onMarks: () => void): Cut {
   function select(kind: 'shot' | 'join', i: number) {
     sel = { kind, i };
     const s = st.shots[kind === 'shot' ? i : i + 1];
-    if (kind === 'shot' && s) play(videoUrl(s.id), t('cut.showShot', { n: i + 1 }), s.start, s.speed);
+    if (kind === 'shot' && s) play(videoUrl(s.id), t('cut.showShot', { n: i + 1 }), s.start, s.speed, s.reverse);
     // Übergang: den Anfang des zweiten Shots zeigen
-    if (kind === 'join' && s) play(videoUrl(s.id), t('cut.showJoin', { a: i + 1, b: i + 2 }), s.start, s.speed);
+    if (kind === 'join' && s) play(videoUrl(s.id), t('cut.showJoin', { a: i + 1, b: i + 2 }), s.start, s.speed, s.reverse);
     drawInspector();
     drawStrip();
   }
@@ -222,7 +227,8 @@ export function cutView(onMarks: () => void): Cut {
           return s.end ?? d;
         }),
         segs(t('cut.speed'), SPEEDS, s.speed, (v) => `${v.toLocaleString(lang)}×`, (v) => { s.speed = v; player.playbackRate = v; save(); }),
-        h('button', { type: 'button', class: 'button ghost', onclick: () => { s.start = 0; s.end = null; s.speed = 1; save(); select('shot', sel?.i ?? 0); } }, t('cut.whole')),
+        segs(t('cut.direction'), DIRS, s.reverse ? 'rev' : 'fwd', (v) => t(v === 'rev' ? 'cut.dir.rev' : 'cut.dir.fwd'), (v) => { s.reverse = v === 'rev'; flag.classList.toggle('hidden', !s.reverse); save(); drawStrip(); }),
+        h('button', { type: 'button', class: 'button ghost', onclick: () => { s.start = 0; s.end = null; s.speed = 1; s.reverse = false; save(); select('shot', sel?.i ?? 0); } }, t('cut.whole')),
       );
       return;
     }
@@ -270,7 +276,7 @@ export function cutView(onMarks: () => void): Cut {
       const card = h('div', {
         class: `cut-shot${sel?.kind === 'shot' && sel.i === i ? ' on' : ''}${missing.has(s.id) ? ' gone' : ''}`, draggable: true, title: missing.has(s.id) ? t('cut.gone') : '',
       }, h('img', { src: imageUrl(s.id, 'thumb'), alt: '' }), h('span', { class: 'bar-n' }, String(i + 1)),
-      h('span', { class: 'cut-len' }, l === null ? '…' : sec(l), s.speed !== 1 ? ` · ${s.speed.toLocaleString(lang)}×` : ''), rm);
+      h('span', { class: 'cut-len' }, l === null ? '…' : sec(l), s.speed !== 1 ? ` · ${s.speed.toLocaleString(lang)}×` : '', s.reverse ? ' · ⟲' : ''), rm);
       card.dataset.i = String(i);
       card.addEventListener('click', () => select('shot', i));
       card.addEventListener('dragstart', (e) => { dragFrom = i; e.dataTransfer?.setData('text/plain', String(i)); });
@@ -329,7 +335,7 @@ export function cutView(onMarks: () => void): Cut {
     if (!g.video || g.status !== 'done') return void (error.textContent = t('cut.onlyVideo'));
     error.textContent = '';
     if (st.shots.length) st.joins.push({ ...st.def });
-    const s: Shot = { id: g.id, duration: null, start: 0, end: null, speed: 1 };
+    const s: Shot = { id: g.id, duration: null, start: 0, end: null, speed: 1, reverse: false };
     st.shots.push(s);
     probe(s);
     save();
@@ -443,6 +449,7 @@ export function cutView(onMarks: () => void): Cut {
     undo.classList.add('hidden');
     sel = null;
     player.removeAttribute('src');
+    flag.classList.add('hidden');
     player.load();
     status.textContent = '';
     save();
@@ -460,7 +467,7 @@ export function cutView(onMarks: () => void): Cut {
       fade: blend(st.def),
       joins: st.joins.map(join),
       endJoin: join(st.def),
-      edits: st.shots.map((s) => ({ ...(s.start > 0 ? { start: s.start } : {}), ...(s.end !== null ? { end: s.end } : {}), ...(s.speed !== 1 ? { speed: s.speed } : {}) })),
+      edits: st.shots.map((s) => ({ ...(s.start > 0 ? { start: s.start } : {}), ...(s.end !== null ? { end: s.end } : {}), ...(s.speed !== 1 ? { speed: s.speed } : {}), ...(s.reverse ? { reverse: true } : {}) })),
       fadeIn: st.fadeIn,
       fadeOut: st.fadeOut,
       format: st.format,
@@ -522,7 +529,7 @@ export function cutView(onMarks: () => void): Cut {
     };
     const num = (v: ParamValue | undefined, d: number) => (typeof v === 'number' ? v : d);
     const joins = json<{ duration: number; type?: Kind }[]>(p.joins);
-    const edits = json<{ start?: number; end?: number; speed?: number }[]>(p.edits);
+    const edits = json<{ start?: number; end?: number; speed?: number; reverse?: boolean }[]>(p.edits);
     const fade = num(p.fade, 0);
     const end = json<{ duration: number; type?: Kind }>(p.endJoin);
     const asTrans = (j: { duration: number; type?: Kind }): Trans => (j.duration ? { kind: j.type ?? 'fade', duration: j.duration } : { kind: 'cut', duration: 0.5 });
@@ -535,7 +542,7 @@ export function cutView(onMarks: () => void): Cut {
     st = {
       ...fresh(),
       def,
-      shots: ids.map((id, i) => ({ id, duration: null, start: edits?.[i]?.start ?? 0, end: edits?.[i]?.end ?? null, speed: edits?.[i]?.speed ?? 1 })),
+      shots: ids.map((id, i) => ({ id, duration: null, start: edits?.[i]?.start ?? 0, end: edits?.[i]?.end ?? null, speed: edits?.[i]?.speed ?? 1, reverse: edits?.[i]?.reverse === true })),
       joins: ids.slice(1).map((_, i) => {
         const j = joins?.[i];
         return j ? asTrans(j) : { ...def };

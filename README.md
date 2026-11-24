@@ -134,6 +134,27 @@ Each model has its own license; Brennglas shows it before first use. Short summa
 
 Missing a model? [Open an issue](https://github.com/m-w-marker/brennglas/issues).
 
+## Speed and hardware
+
+Times measured on an RTX 3090 at 2 MP (video: the stated size). RTX 3060/4060-class cards are roughly 2 to 3× slower
+(community SDXL benchmarks). The app shows these times under the model and, after a few runs, your own times.
+
+Every model also ran on a simulated 12 GB card at about the same speed: ComfyUI keeps the weights in system RAM and streams
+them to the GPU. On smaller cards RAM is the limit, not VRAM. For video on 12 GB cards NVIDIA recommends 540p.
+
+<!-- model-speed:start -->
+| Model | RTX 3090 | With prompt enhancer | RAM for 12 to 16 GB cards |
+|---|---|---|---|
+| Z-Image Turbo | image ~10 s | image ~38 s | 32 GB |
+| Krea 2 Turbo | image ~35 s | image ~38 s | 32 GB |
+| FLUX 3 Image Klein | image ~10 s, edit ~24 s | image ~14 s, edit ~28 s | 32 GB |
+| Qwen-Image-2.1 Turbo | image ~9 s, edit ~19 s | image ~26 s, edit ~39 s | 32 GB |
+| LTX-2.5 22B | image to video ~57 s (720p, 5 s; 1080p ~2 min) |  | 64 GB |
+| Wan 2.2 Fun Camera 14B | image to video ~1.6 min (480p, 5 s; 720p ~5.5 min) |  | 64 GB |
+| LTX-2.5 Layout-To-Render | layout to video ~1.7 min (720p, 5 s) |  | 64 GB |
+| SeedVR2 7B | upscale ~13 s (image to 4k) |  | 32 GB |
+<!-- model-speed:end -->
+
 ## Model files
 
 `install.bat` downloads them for you. By hand, put each file into the named folder under `ComfyUI\models`; shared files are needed once.

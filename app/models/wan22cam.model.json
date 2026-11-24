@@ -15,5 +15,15 @@
       "de": "Frei nutzbar, auch kommerziell. Lizenztext und Hinweise beim Weitergeben beilegen.",
       "en": "Free to use, including commercially. Include the licence text and notices when redistributing."
     }
+  },
+  "bench": {
+    "speed": {
+      "i2v": 9.5
+    },
+    "basis": {
+      "de": "480p, 5 s; 720p ~5,5 min",
+      "en": "480p, 5 s; 720p ~5.5 min"
+    },
+    "ramGB": 64
   }
 }

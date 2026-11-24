@@ -1,4 +1,4 @@
-import type { ClaudeConfig, Figure, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { ClaudeConfig, DurationStats, Figure, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Der Typ kommt aus der Windows-Registry und ist uneinheitlich (.aac = audio/vnd.dlna.adts); die Endung entscheidet. */
 function audioType(file: File): string {
@@ -30,6 +30,7 @@ export const api = {
     return fetch(`/api/generations?${q}`).then((r) => json<Page<Generation>>(r));
   },
   claudeConfig: () => fetch('/api/claude-config').then((r) => json<ClaudeConfig>(r)),
+  durations: () => fetch('/api/generations/durations').then((r) => json<DurationStats>(r)),
   usedWorkflows: () => fetch('/api/generations/workflows').then((r) => json<string[]>(r)),
   loras: (workflow: string) => fetch(`/api/loras/${encodeURIComponent(workflow)}`)
     .then((r) => json<{ options: string[]; optionLabels: Record<string, Text>; triggers: Record<string, string> }>(r)),

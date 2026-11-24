@@ -1,8 +1,9 @@
-import type { FieldSpec, Figure, Text, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
+import type { DurationStats, FieldSpec, Figure, Text, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, refUrl, videoUrl } from '../api.ts';
 import { copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
 import { commercialLabel, ensureLicense } from './license.ts';
+import { BENCH_UNIT_MS, MIN_RUNS, benchTimes, shortDuration } from '../bench.ts';
 
 /** Ein Bild der Leiste; file wird erst beim Absenden hochgeladen. */
 interface Item {
@@ -70,6 +71,8 @@ export interface InputPanel {
   setModels(list: ModelInfo[]): void;
   /** In den Bearbeiten-Modus und diese Figur für die nächste Szene wählen. */
   useFigure(id: string): void;
+  /** Ein Job ist fertig: eigene Laufzeiten neu holen. */
+  refreshTimes(): void;
   /** Das Werkzeug (Schnitt) statt der Modell-Einstellungen zeigen. */
   openTool(): void;
   /** Zurück zum zuletzt gewählten Modell. */
@@ -590,9 +593,14 @@ export function inputPanel(
     return list.length ? h('optgroup', { label: t(GROUP_KEY[g]) }, ...list.map(option)) : null;
   }).filter((x) => x !== null));
   const licence = h('div', { class: 'lic-line' });
+  const benchLine = h('div', { class: 'lic-line bench-line' });
+  const ramLine = h('div', { class: 'lic-line bench-line' });
+  const ownLine = h('div', { class: 'lic-line bench-line' });
+  let stats: DurationStats = {};
+  let statsAt = 0;
   const missing = h('p', { class: 'model-missing hidden' });
   const tabsEl = h('div', { class: 'tabs' }, ...tabs);
-  const modelRow = h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, missing);
+  const modelRow = h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, h('div', { class: 'bench' }, benchLine, ramLine, ownLine), missing);
   modelSelect.addEventListener('change', () => select(modelSelect.value));
   let toolOn = false;
 
@@ -677,6 +685,7 @@ export function inputPanel(
     licence.replaceChildren(t('lic.label'), ' ',
       h('a', { href: m.license.url, target: '_blank', rel: 'noopener noreferrer' }, m.license.name), ` · ${commercialLabel(m)}`);
     licence.title = tx(m.license.summary) ?? '';
+    showBench(m, next);
     showMissing(m);
     submit.textContent = tx(f.wf.submit) ?? t(f.image ? 'form.edit' : 'form.generate');
     count.classList.toggle('hidden', f.wf.kind === 'video' || f.wf.kind === 'text');
@@ -785,6 +794,44 @@ export function inputPanel(
     return cands.find(ready) ?? cands[0];
   }
 
+  /** Zeit auf der RTX 3090, eigene oder geschätzte Zeit, RAM-Empfehlung; Laufzeiten höchstens alle 20 s neu holen. */
+  function showBench(m: ModelInfo, md: Mode, fresh = false) {
+    const b = m.bench;
+    benchLine.classList.toggle('hidden', !b);
+    ramLine.classList.toggle('hidden', !b);
+    ownLine.classList.add('hidden');
+    if (!b) return;
+    const d = (ms: number) => shortDuration(ms, lang);
+    const speed = b.speed[md];
+    const enh = b.speedEnhanced?.[md];
+    const times = benchTimes(models, stats, m, md);
+    // Referenz der RTX 3090, darunter RAM, dann die eigene GPU (gemessen oder geschätzt)
+    const pair = (a: number | undefined, e: number | undefined) =>
+      [a !== undefined ? d(a) : null, e !== undefined ? t('bench.enh', { s: d(e) }) : null].filter(Boolean).join(' · ');
+    const ref = speed === undefined ? null
+      : t('bench.ref', { s: pair(speed * BENCH_UNIT_MS, enh === undefined ? undefined : enh * BENCH_UNIT_MS) }) + (tx(b.basis) ? ` (${tx(b.basis)})` : '');
+    benchLine.textContent = ref ?? '';
+    benchLine.classList.toggle('hidden', !ref);
+    benchLine.title = t('bench.title');
+    ramLine.textContent = t('bench.ram', { n: b.ramGB });
+    ramLine.title = t('bench.title');
+    const { plain, enhanced } = times;
+    const wf = m.modes[md];
+    if (plain || enhanced) {
+      const est = !(plain?.own ?? true) || !(enhanced?.own ?? true);
+      ownLine.textContent = t(est ? 'bench.mineEst' : 'bench.mine', { s: pair(plain?.ms, enhanced?.ms) });
+    } else if (wf) {
+      const n = Math.max(stats[wf]?.n ?? 0, stats[`${wf}+pe`]?.n ?? 0);
+      ownLine.textContent = t('bench.minePending', { n: Math.min(n, MIN_RUNS), max: MIN_RUNS });
+    }
+    ownLine.title = t('bench.title');
+    ownLine.classList.toggle('hidden', !(plain || enhanced || wf));
+    if (!fresh && Date.now() - statsAt > 20_000) {
+      statsAt = Date.now();
+      void api.durations().then((s) => { stats = s; if (model) showBench(model, mode, true); }).catch(() => {});
+    }
+  }
+
   function switchTo(md: Mode, g: Generation | null = null) {
     const m = targetFor(g, md);
     if (m) select(m.id, md);
@@ -858,5 +905,6 @@ export function inputPanel(
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
   // select() stellt Modell-Zeile, Formular und Absende-Knopf wieder her
   const leaveTool = () => toolOn && select(model?.id, mode);
-  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, setModels, useFigure, openTool, closeTool: leaveTool };
+  return { el, continueFrom, remix, addReference, hasMode: (md) => modes.includes(md), targetName: (g, md) => targetFor(g, md)?.short ?? null, setFigures, setModels, useFigure, openTool, closeTool: leaveTool,
+    refreshTimes: () => { statsAt = 0; if (model) showBench(model, mode); } };
 }

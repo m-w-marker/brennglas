@@ -1,7 +1,7 @@
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import Database from 'better-sqlite3';
-import type { Figure, FigureKind, Generation, GenerationFilter, GenStatus, Page, ParamValue, SeriesRef } from '@brennglas/shared';
+import type { DurationStats, Figure, FigureKind, Generation, GenerationFilter, GenStatus, Page, ParamValue, SeriesRef } from '@brennglas/shared';
 
 export type DB = Database.Database;
 
@@ -273,6 +273,23 @@ export function listGenerations(db: DB, cursor: number | null, limit: number, fi
   const more = rows.length > limit;
   const page = rows.slice(0, limit);
   return { items: page.map(toApi), nextCursor: more ? (page.at(-1)?.rowid ?? null) : null };
+}
+
+/** Ältere Läufe zählten die Wartezeit in der Queue mit und bleiben aus der Statistik draußen (→ plan_modellhilfe.md Phase 2). */
+export const STATS_SINCE = '2026-11-24T20:30:00.000Z';
+
+/** Median der letzten 30 Läufe je Workflow und Erweiterung (Bild: enhance, Video: pe). */
+export function durationStats(db: DB): DurationStats {
+  const rows = db.prepare(`SELECT workflow, params_json, duration_ms FROM generations
+    WHERE status = 'done' AND duration_ms > 0 AND created_at >= ? ORDER BY rowid DESC LIMIT 3000`).all(STATS_SINCE) as { workflow: string; params_json: string; duration_ms: number }[];
+  const by = new Map<string, number[]>();
+  for (const r of rows) {
+    const p = parseParams(r.params_json);
+    const key = p.enhance === true || p.pe === true ? `${r.workflow}+pe` : r.workflow;
+    const list = by.get(key) ?? [];
+    if (list.length < 30) by.set(key, [...list, r.duration_ms]);
+  }
+  return Object.fromEntries([...by].map(([k, l]) => [k, { ms: [...l].sort((x, y) => x - y)[Math.floor(l.length / 2)] as number, n: l.length }]));
 }
 
 /** Workflows, die in der Galerie vorkommen – die Galerie bietet nur dafür Modell-Filter an. */

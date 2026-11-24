@@ -12,7 +12,7 @@ import { saveVideoInput } from '../video-input.ts';
 import { PlanError, TRANSITIONS, type CutFormat, type Join, type ShotEdit, type Transition } from '../concat-plan.ts';
 import {
   deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
-  refsOf, setFavorite, toApi, usedWorkflows, type DB,
+  refsOf, setFavorite, toApi, durationStats, usedWorkflows, type DB,
 } from '../db.ts';
 import { composeSheet, sheetProblem, sheetPrompt, templateFile } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
@@ -278,6 +278,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
   });
 
   app.get('/api/generations/workflows', async () => usedWorkflows(db));
+  app.get('/api/generations/durations', async () => durationStats(db));
 
   app.get('/api/generations/:id', async (req, reply) => {
     const row = getRow(db, (req.params as { id: string }).id);
@@ -376,7 +377,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     const edits = Array.isArray(body.edits) ? body.edits.map((x): ShotEdit => {
       const e = (x ?? {}) as Record<string, unknown>;
       const n = (k: string) => (typeof e[k] === 'number' && Number.isFinite(e[k]) ? { [k]: e[k] as number } : {});
-      return { ...n('start'), ...n('end'), ...n('speed') };
+      return { ...n('start'), ...n('end'), ...n('speed'), ...(e.reverse === true ? { reverse: true } : {}) };
     }) : undefined;
     if (edits && edits.length !== ids.length) return reply.code(400).send({ error: `edits braucht ${ids.length} Einträge, einen je Shot` });
     const format: CutFormat = body.format === 'webm' ? 'webm' : 'mp4';

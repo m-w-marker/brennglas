@@ -62,7 +62,7 @@ Edit strength (denoise, 0.8 to 1): 1 is the free edit, below that the edit start
 perspective. Around 0.9 turns a 3D render into a photo without rebuilding it; below 0.85 hardly anything changes.
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
-const server = new McpServer({ name: 'brennglas', version: '0.9.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'brennglas', version: '0.10.0' }, { instructions: INSTRUCTIONS });
 
 const text = (t: string): CallToolResult => ({ content: [{ type: 'text', text: t }] });
 const fail = (e: unknown): CallToolResult => ({ content: [{ type: 'text', text: (e as Error).message }], isError: true });
@@ -141,13 +141,17 @@ async function waitFor(id: string, seconds: number): Promise<Generation> {
 server.registerTool('list_models', {
   title: 'List Brennglas models',
   description: 'Lists the local image and video models with their modes, the workflow name per mode, and every input field (type, default, range, options). '
-    + 'Call this first. Enum options can be passed by their shown name (e.g. camera "Arc left"). Models with "missing" files cannot run.',
+    + 'Call this first. Enum options can be passed by their shown name (e.g. camera "Arc left"). Models with "missing" files cannot run. '
+    + 'speed is the measured time per mode as a factor (1 = FLUX text to image at 2 MP, about 10 s on an RTX 3090), enhanced = with prompt enhancer; '
+    + 'use it to plan waiting times. ramGB is the recommended system RAM for 12–16 GB graphics cards.',
   annotations: { readOnlyHint: true },
 }, async () => {
   try {
     const { models, byName } = await catalogue();
     const out = models.map((m) => ({
       id: m.id, name: typeof m.name === 'string' ? m.name : m.name.en, license: `${m.license.name} (commercial: ${m.license.commercial})`,
+      ...(m.bench ? { speed: m.bench.speed, ...(m.bench.speedEnhanced ? { enhanced: m.bench.speedEnhanced } : {}),
+        ...(m.bench.basis ? { speedBasis: typeof m.bench.basis === 'string' ? m.bench.basis : m.bench.basis.en } : {}), ramGB: m.bench.ramGB } : {}),
       ...(m.missing?.length ? { missing: m.missing.map((f) => (m.downloads[f] ? `${f} (download: ${m.downloads[f]})` : f)) } : {}),
       modes: Object.fromEntries(Object.entries(m.modes).filter(([, w]) => w && byName.get(w)?.kind !== 'video').map(([mode, w]) => {
         const wf = byName.get(w as string) as WorkflowInfo;

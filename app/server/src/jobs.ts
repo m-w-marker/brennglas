@@ -407,6 +407,7 @@ export class Jobs {
   private markRunning(job: Active): void {
     if (job.running) return;
     job.running = true;
+    job.startedAt = Date.now(); // Laufzeit ohne Wartezeit in der Queue (Anzeige „hier ~X“)
     setStatus(this.db, job.id, 'running');
     broadcast({ type: 'status', id: job.id, status: 'running' });
   }
