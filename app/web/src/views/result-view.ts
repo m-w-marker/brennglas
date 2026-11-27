@@ -65,9 +65,10 @@ interface Callbacks {
   /** Schnittplatz: Video hineinlegen, fertigen Schnitt wieder öffnen. */
   onAddCut?: (g: Generation) => void;
   onOpenCut?: (g: Generation) => void;
+  onImageEdit?: (g: Generation) => void;
 }
 
-export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onFigure, onVideo, targetName, isVideo, onAddCut, onOpenCut }: Callbacks): ResultView {
+export function resultView({ onChange, onContinue, onRemix, onUpscale, onReference, onFigure, onVideo, targetName, isVideo, onAddCut, onOpenCut, onImageEdit }: Callbacks): ResultView {
   let current: string | null = null;
   let shown: Generation | null = null;
   let lastEventAt = 0;
@@ -247,10 +248,14 @@ export function resultView({ onChange, onContinue, onRemix, onUpscale, onReferen
         h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix')),
         h('button', { type: 'button', class: 'button', onclick: () => void api.openFolder(g.id).catch(() => {}) }, t('res.openTarget')));
     }
+    // Eine Bildbearbeitung hat keinen Workflow zum Remixen, sie öffnet sich mit ihren Ebenen
+    const edited = g.workflow === 'imageedit' && onImageEdit;
     actions.replaceChildren(
       starButton(g),
-      h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix')),
+      edited ? h('button', { type: 'button', class: 'button ghost', onclick: () => onImageEdit(g) }, t('ie.openIn'))
+        : h('button', { type: 'button', class: 'button ghost', title: t('res.remixTitle'), onclick: () => onRemix(g) }, t('res.remix')),
       h('button', { type: 'button', class: 'button ghost', onclick: () => onContinue(g) }, ...to(t('res.continue'), 'edit')),
+      ...(onImageEdit && !edited ? [h('button', { type: 'button', class: 'button ghost', title: t('ie.addToTitle'), onclick: () => onImageEdit(g) }, t('ie.addTo'))] : []),
       ...(onReference ? [h('button', { type: 'button', class: 'button ghost', title: t('res.asRefTitle'), onclick: () => onReference(g) }, ...to(t('res.asRef'), 'edit', null))] : []),
       ...(onFigure ? [h('button', { type: 'button', class: 'button ghost', title: t('fig.asTitle'), onclick: () => onFigure(g) }, t('fig.as'))] : []),
       ...(onUpscale ? [h('button', { type: 'button', class: 'button ghost', onclick: () => onUpscale(g) }, t('res.upscale'))] : []),

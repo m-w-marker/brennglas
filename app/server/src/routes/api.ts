@@ -4,7 +4,7 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmS
 import { join } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import sharp from 'sharp';
-import { MAX_EXTRA_VIEWS, SHEET_PANELS, SHEET_SIZE, sheetTemplateDefault } from '@brennglas/shared';
+import { MAX_EXTRA_VIEWS, parseEditProject, SHEET_PANELS, SHEET_SIZE, sheetTemplateDefault } from '@brennglas/shared';
 import type { ClaudeConfig, FigureKind, FigureSheetRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
 import { concatClips, frameAt, probe, type ConcatOptions } from '../clips.ts';
@@ -16,7 +16,7 @@ import {
 } from '../db.ts';
 import { composeSheet, sheetProblem, sheetPrompt, templateFile } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
-import { cropRegion, saveInput, saveOutput } from '../images.ts';
+import { cropRegion, inputPaths, saveInput, saveOutput } from '../images.ts';
 import { BadRequest, type Jobs } from '../jobs.ts';
 import { missingFiles, type Model } from '../models.ts';
 import type { Loras } from '../loras.ts';
@@ -463,6 +463,51 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       }
       return reply.code(e instanceof PlanError ? 400 : 502).send({ error: (e as Error).message });
     }
+  });
+
+  // Bildbearbeitung: fertiges Bild kam schon per /api/upload, hier wird es zum Galerie-Eintrag mit dem Projekt zum Wiederöffnen
+  app.post('/api/image-edit', async (req, reply) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const paths = typeof body.image === 'string' ? inputPaths(body.image) : null;
+    if (!paths || !existsSync(join(dataDir, paths.inputPath))) return reply.code(400).send({ error: 'image: hochgeladenes Bild (inputId) fehlt' });
+    const project = parseEditProject(body.project);
+    if (!project?.layers.length) return reply.code(400).send({ error: 'project: Arbeitsfläche mit mindestens einer Ebene erwartet' });
+    // Was der Parser verwirft, stünde im Bild, aber nicht im Projekt: lieber ablehnen als still verlieren
+    const sent = (body.project as { layers?: unknown } | null)?.layers;
+    if (Array.isArray(sent) && sent.length !== project.layers.length) {
+      return reply.code(400).send({ error: `project: ${sent.length - project.layers.length} Ebene(n) ungültig (Bildebene ohne Quelle?)` });
+    }
+    const gone = project.layers.flatMap((l) => {
+      if (!l.src) return [];
+      const rel = l.src.kind === 'input' ? inputPaths(l.src.id)?.inputPath : undefined;
+      const ok = l.src.kind === 'output' ? getRow(db, l.src.id)?.status === 'done' : !!rel && existsSync(join(dataDir, rel));
+      return ok ? [] : [l.src.id];
+    });
+    if (gone.length) return reply.code(400).send({ error: `Ebenen-Quelle nicht gefunden: ${gone.join(', ')}` });
+    const id = randomUUID();
+    try {
+      const saved = await saveOutput(dataDir, id, readFileSync(join(dataDir, paths.inputPath)));
+      insertGeneration(db, {
+        id, workflow: 'imageedit', prompt: `Bildbearbeitung aus ${project.layers.length} Ebenen`,
+        params: { project: JSON.stringify(project) },
+        parentId: project.layers.find((l) => l.src?.kind === 'output')?.src?.id ?? null,
+      });
+      finishDone(db, id, { ...saved, expandedPrompt: null, durationMs: 0 });
+      const row = getRow(db, id);
+      if (row) broadcast({ type: 'done', generation: toApi(row) });
+      return row ? toApi(row) : { id };
+    } catch (e) {
+      if (!getRow(db, id)) for (const p of [`images/${id}.png`, `previews/${id}.webp`, `thumbs/${id}.webp`]) rmSync(join(dataDir, p), { force: true });
+      return reply.code(500).send({ error: (e as Error).message });
+    }
+  });
+
+  // Ebenen eines Projekts, die nicht aus der Galerie stammen (Malebenen, Fotos von der Platte)
+  app.get('/api/inputs/:id', async (req, reply) => {
+    const paths = inputPaths((req.params as { id: string }).id);
+    const file = paths ? join(dataDir, paths.inputPath) : '';
+    if (!file || !existsSync(file)) return reply.code(404).send({ error: 'Bild nicht gefunden' });
+    return reply.type('image/png').header('cache-control', 'public, max-age=31536000, immutable').send(createReadStream(file));
   });
 
   app.get('/api/concat/preview/:id', async (req, reply) => {

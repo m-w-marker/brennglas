@@ -159,7 +159,8 @@ export function viewer(): Viewer {
 
   window.addEventListener('keydown', (e) => {
     const t = e.target as HTMLElement;
-    if (!natW || e.ctrlKey || e.altKey || t.closest('input, textarea, select')) return;
+    // Verborgen (Schnitt, Bildbearbeitung): deren Tasten gehören nicht dem Ergebnis-Viewer
+    if (!natW || e.ctrlKey || e.altKey || t.closest('input, textarea, select') || box.offsetParent === null) return;
     if (e.key === 'f' || e.key === 'F') fit();
     else if (e.key === '1') actual();
     else if (e.key === '+' || e.key === '=') zoomBy(STEP);

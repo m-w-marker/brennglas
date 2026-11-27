@@ -454,3 +454,38 @@ input[type='range'] { flex: 1; accent-color: var(--accent); }
   background: var(--raise); border: 1px solid var(--line-strong); box-shadow: 0 6px 24px rgba(0, 0, 0, .5);
 }
 .ctx-menu button { border: 0; text-align: left; padding: 9px 14px; }
+
+/* Bildbearbeitung */
+.ie-wrap { position: relative; flex: 1; min-height: 240px; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px dashed transparent; }
+.ie-wrap.over { border-color: var(--accent); }
+.ie-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+.ie-canvas.grab { cursor: grab; }
+.ie-canvas.panning { cursor: grabbing; }
+.ie-board { position: absolute; pointer-events: none; outline: 1px solid var(--line);
+  background: repeating-conic-gradient(#2a2d33 0 25%, #1c1f24 0 50%) 0 0 / 16px 16px; }
+.ie-cursor { position: absolute; border: 1px solid rgba(255, 255, 255, .8); border-radius: 50%; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); pointer-events: none; }
+.ie-empty { max-width: 420px; text-align: center; }
+.ie-box { border: 1px solid var(--line); padding: 8px 10px; display: flex; flex-direction: column; gap: 10px; }
+.ie-box[open] { padding-bottom: 12px; }
+.ie-box summary { cursor: pointer; font-size: 12px; letter-spacing: .06em; color: var(--muted); }
+.ie-box[open] summary { margin-bottom: 8px; }
+.ie-box > * + * { margin-top: 8px; }
+.ie-end { justify-content: flex-end; }
+.ie-color { width: 100%; height: 32px; padding: 2px; border: 1px solid var(--line-strong); background: var(--surface); cursor: pointer; }
+.ie-inline { display: flex; flex-direction: column; gap: 4px; }
+.ie-layers { display: flex; flex-direction: column; border: 1px solid var(--line); max-height: 260px; overflow-y: auto; }
+.ie-layer { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-top: 1px solid var(--line); cursor: pointer; font-size: 12px; }
+.ie-layer:first-child { border-top: 0; }
+.ie-layer:hover { background: var(--raise); }
+.ie-layer.on { background: var(--raise); box-shadow: inset 2px 0 0 var(--accent); }
+.ie-layer.off .ie-name { color: var(--faint); }
+.ie-eye { border: 0; padding: 0 4px; background: none; color: var(--faint); font-size: 12px; }
+.ie-eye.on { color: var(--accent); }
+.ie-swatch { flex: 0 0 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); color: var(--muted); font-size: 11px; }
+.ie-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ie-mode { font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
+.ie-del { padding: 0 4px; font-size: 14px; line-height: 1; }
+.ie-numbox { display: flex; align-items: center; gap: 3px; align-self: center; }
+.ie-num { width: 58px; padding: 3px 5px; text-align: right; font-family: var(--mono); font-size: 12.5px; -moz-appearance: textfield; }
+.ie-num::-webkit-inner-spin-button, .ie-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.ie-unit { font-family: var(--mono); font-size: 11px; color: var(--faint); min-width: 16px; }

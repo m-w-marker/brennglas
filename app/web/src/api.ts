@@ -1,4 +1,4 @@
-import type { ClaudeConfig, DurationStats, Figure, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { ClaudeConfig, DurationStats, EditProject, Figure, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, GenerationFilter, Health, MemoryStats, ModelInfo, Page, QueueItem, SseEvent, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Der Typ kommt aus der Windows-Registry und ist uneinheitlich (.aac = audio/vnd.dlna.adts); die Endung entscheidet. */
 function audioType(file: File): string {
@@ -66,6 +66,9 @@ export const api = {
   concatPreview: (body: Record<string, unknown>) =>
     fetch('/api/concat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then((r) => json<{ url: string; duration: number }>(r)),
+  /** Bildbearbeitung: hochgeladenes Ergebnis + Projekt → neuer Galerie-Eintrag. */
+  imageEdit: (image: string, project: EditProject) =>
+    fetch('/api/image-edit', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image, project }) }).then((r) => json<Generation>(r)),
   generate: (req: GenerateRequest) =>
     fetch('/api/generate', {
       method: 'POST',
@@ -75,6 +78,7 @@ export const api = {
 };
 
 export const imageUrl = (id: string, kind: 'full' | 'preview' | 'thumb' | 'input') => `/api/images/${id}/${kind}`;
+export const inputUrl = (inputId: string) => `/api/inputs/${inputId}`;
 export const videoUrl = (id: string) => `/api/images/${id}/video`;
 export const refUrl = (id: string, n: number) => `/api/images/${id}/ref/${n}`;
 /** Drag-Typ für Galerie-Bilder, Inhalt ist die Generation-ID. */

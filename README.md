@@ -40,6 +40,7 @@ It is also an MCP server, so Claude can direct whole clips for you.
 - [Layout to video](#layout-to-video): a grey 3D animation sets camera and motion, one rendered frame sets the look.
 - Upscaling of images to 8K, and of videos and render sequences to 4K.
 - A video editor for cuts, transitions, music, logo and end card.
+- An image editor to rework results between generations: layers, blend modes, opacity, brush and eraser, snapping, crop. Save to the gallery or send straight to an edit model.
 - A prompt assistant that writes good English prompts from short notes in any language.
 - Gallery with search and series, live preview, queue. English and German interface.
 

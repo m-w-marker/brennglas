@@ -320,3 +320,79 @@ export type SseEvent =
   | { type: 'queue'; remaining: number }
   | { type: 'favorite'; id: string; favorite: boolean }
   | { type: 'deleted'; id: string };
+
+/** Bildbearbeitung → plan_bildbearbeitung: Projekt = Ebenen mit Quellen, gespeichert in den params des Ergebnisses. */
+export const BLEND_MODES = ['normal', 'multiply', 'screen', 'overlay', 'soft-light', 'color-dodge'] as const;
+export type BlendMode = (typeof BLEND_MODES)[number];
+/** Obergrenze je Ebene und Arbeitsfläche, etwa ein generiertes Bild (2048²); größere Fotos werden beim Laden verkleinert. */
+export const EDIT_MAX_PIXELS = 2048 * 2048;
+export const EDIT_MAX_LAYERS = 40;
+export type LayerSource = { kind: 'output' | 'input'; id: string };
+export interface EditLayer {
+  kind: 'image' | 'fill';
+  name: string;
+  visible: boolean;
+  opacity: number;
+  blend: BlendMode;
+  /** Lage der Ebene auf der Arbeitsfläche in Pixeln, gespiegelt wird in ihrem eigenen Rahmen. */
+  x: number;
+  y: number;
+  scale: number;
+  flip: boolean;
+  /** Nur Farbfläche. */
+  color?: string;
+  /** Nur Bildebene. */
+  src?: LayerSource;
+}
+export interface EditProject { width: number; height: number; layers: EditLayer[] }
+
+/** Fremde Daten (Request, alter Galerie-Eintrag): unbrauchbare Ebenen fallen weg, Werte werden begrenzt; null = keine Arbeitsfläche. */
+export function parseEditProject(raw: unknown): EditProject | null {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const size = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 8192 ? v : null);
+  const width = size(o.width);
+  const height = size(o.height);
+  if (width === null || height === null || width * height > EDIT_MAX_PIXELS) return null;
+  const num = (v: unknown, d: number, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
+  const layers = (Array.isArray(o.layers) ? o.layers : []).slice(0, EDIT_MAX_LAYERS).flatMap((x): EditLayer[] => {
+    const l = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+    const base = {
+      name: typeof l.name === 'string' ? l.name.slice(0, 80) : '',
+      visible: l.visible !== false,
+      opacity: num(l.opacity, 1, 0, 1),
+      blend: BLEND_MODES.includes(l.blend as BlendMode) ? (l.blend as BlendMode) : 'normal',
+      x: num(l.x, 0, -1e5, 1e5),
+      y: num(l.y, 0, -1e5, 1e5),
+      scale: num(l.scale, 1, 0.01, 20),
+      flip: l.flip === true,
+    };
+    if (l.kind === 'fill') return [{ kind: 'fill', ...base, color: typeof l.color === 'string' && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#ffffff' }];
+    const s = (l.src && typeof l.src === 'object' ? l.src : {}) as Record<string, unknown>;
+    if (l.kind !== 'image' || (s.kind !== 'output' && s.kind !== 'input') || typeof s.id !== 'string' || !/^[0-9a-f-]{36,64}$/.test(s.id)) return [];
+    return [{ kind: 'image', ...base, src: { kind: s.kind, id: s.id } }];
+  });
+  return { width, height, layers };
+}
+
+/** Einrasten auf einer Achse: nächste Zielkante zu Anfang oder Ende der Ebene innerhalb thr → [neue Lage, Kante | null]. */
+export function snapAxis(pos: number, size: number, targets: number[], thr: number): [number, number | null] {
+  let best: [number, number | null] = [Math.round(pos), null];
+  let dist = thr;
+  for (const at of targets) {
+    for (const edge of [pos, pos + size]) {
+      if (Math.abs(at - edge) <= dist) {
+        dist = Math.abs(at - edge);
+        best = [pos + at - edge, at];
+      }
+    }
+  }
+  return best;
+}
+
+/** Zoomstufen der Bildbearbeitung, 1 = ein Bildpixel auf ein Bildschirmpixel. */
+export const ZOOM_LEVELS = [0.05, 0.1, 1 / 8, 1 / 6, 0.25, 1 / 3, 0.5, 2 / 3, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32];
+/** Nächste Stufe vom aktuellen Zoom aus, auch wenn er (eingepasst) zwischen zwei Stufen liegt; Rundungsreste zählen als die Stufe. */
+export function zoomStep(s: number, dir: 1 | -1): number {
+  if (dir > 0) return ZOOM_LEVELS.find((z) => z > s * 1.001) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1] ?? s;
+  return [...ZOOM_LEVELS].reverse().find((z) => z < s / 1.001) ?? ZOOM_LEVELS[0] ?? s;
+}

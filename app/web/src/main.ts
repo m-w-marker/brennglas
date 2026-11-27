@@ -7,7 +7,8 @@ import { openClaudeHelp } from './views/claude-help.ts';
 import { cutView } from './views/cut.ts';
 import { figures, type Figures } from './views/figures.ts';
 import { gallery, type Gallery } from './views/gallery.ts';
-import { inputPanel, type InputPanel } from './views/input-panel.ts';
+import { imageEditView } from './views/image-edit.ts';
+import { inputPanel, type InputPanel, type Tool } from './views/input-panel.ts';
 import { queuePanel } from './views/queue-panel.ts';
 import { resultView } from './views/result-view.ts';
 
@@ -53,7 +54,7 @@ freeBtn.addEventListener('click', () => {
 /** Etikett je Workflow in der Galerie: Modell-Kürzel, bei Edit mit Zusatz. */
 function badges(models: ModelInfo[]): Map<string, string> {
   // Schnitte aus mehreren Shots (POST /api/concat) haben keinen Workflow
-  const map = new Map<string, string>([['concat', t('gal.concat')]]);
+  const map = new Map<string, string>([['concat', t('gal.concat')], ['imageedit', t('gal.imageedit')]]);
   for (const m of models) {
     for (const [mode, wf] of Object.entries(m.modes)) if (wf) map.set(wf, mode === 'edit' ? `${m.short} · ${t('mode.edit')}` : m.short);
   }
@@ -75,9 +76,10 @@ const storedView = () => {
 };
 const genTab =h('button', { type: 'button', class: 'view-tab on' }, t('view.generate'));
 const cutTab = h('button', { type: 'button', class: 'view-tab' }, t('cut.name'));
+const imgTab = h('button', { type: 'button', class: 'view-tab' }, t('ie.name'));
 const topbar = h('header', { class: 'topbar' },
   h('div', { class: 'top-left' }, h('div', { class: 'brand' }, 'BRENNGLAS', h('span', {}, t('brand.sub'))),
-    h('nav', { class: 'view-tabs' }, genTab, cutTab)),
+    h('nav', { class: 'view-tabs' }, genTab, cutTab, imgTab)),
   h('div', { class: 'top-right' }, queue.el, memory, freeBtn,
     h('button', { type: 'button', class: 'top-btn', onclick: openClaudeHelp }, t('claude.button')), langSwitch(), comfy));
 
@@ -102,13 +104,30 @@ try {
   let gal: Gallery | null = null;
   let input: InputPanel | null = null;
   let figs: Figures | null = null;
-  // Schnittplatz: nur sichtbar, solange sein Reiter gewählt ist; dann ersetzt er die Mitte
-  let cutOn = false;
-  const cut = cutView(() => gal?.setMarks(cutOn ? cut.marks() : new Map()));
+  // Schnitt und Bildbearbeitung: nur sichtbar, solange ihr Reiter gewählt ist; dann ersetzen sie die Mitte
+  type View = 'generate' | 'cut' | 'image';
+  let view: View = 'generate';
+  const cut = cutView(() => gal?.setMarks(view === 'cut' ? cut.marks() : new Map()));
+  const edit = imageEditView((g) => input?.continueFrom(g, 'edit'));
+  const tools: Record<'cut' | 'image', Tool> = {
+    cut: {
+      section: cut.settings, submitLabel: t('cut.render'), busyLabel: t('cut.rendering'),
+      enter: () => showView('cut'), leave: () => showView('generate'), submit: () => cut.render(),
+    },
+    image: {
+      section: edit.settings, submitLabel: t('ie.save'), busyLabel: t('ie.saving'),
+      enter: () => { showView('image'); edit.enter(); }, leave: () => { edit.leave(); showView('generate'); }, submit: async () => { await edit.save(); },
+    },
+  };
   const toCut = (g: Generation, open = false) => {
-    input?.openTool();
+    input?.openTool(tools.cut);
     if (open) cut.open(g);
     else cut.add(g);
+  };
+  const toEdit = (g: Generation) => {
+    input?.openTool(tools.image);
+    if (g.workflow === 'imageedit') edit.open(g);
+    else edit.add(g);
   };
   const result = resultView({
     onChange: (id) => gal?.select(id),
@@ -122,6 +141,7 @@ try {
     isVideo: (g) => videoWfs.has(g.workflow),
     onAddCut: (g) => toCut(g),
     onOpenCut: (g) => toCut(g, true),
+    onImageEdit: toEdit,
   });
   badgeMap = badges(models);
   showGeneration = (g) => result.show(g);
@@ -132,37 +152,40 @@ try {
   const groups = {
     video: [...new Set([...models.flatMap((m) => [m.modes.t2v, m.modes.i2v, m.modes.flf2v, m.modes.l2v]).filter(isWf), ...videoWfs, 'concat'])],
     models: [...models.map((m) => ({ id: m.id, label: m.short, workflows: Object.values(m.modes).filter(isWf) })),
-      { id: 'concat', label: t('gal.concat'), workflows: ['concat'] }],
+      { id: 'concat', label: t('gal.concat'), workflows: ['concat'] }, { id: 'imageedit', label: t('gal.imageedit'), workflows: ['imageedit'] }],
   };
-  gal = gallery((g) => (cutOn ? g.video && cut.toggle(g) : result.show(g)), badgeMap, figs, (g) => toCut(g), groups);
-  const showCut = (on: boolean) => {
-    cutOn = on;
-    // Ausgeblendete Player verstummen, sonst läuft der Ton unsichtbar weiter
-    (on ? result.el : cut.stage).querySelectorAll('video').forEach((v) => v.pause());
-    result.el.classList.toggle('hidden', on);
-    cut.stage.classList.toggle('hidden', !on);
-    gal?.setMarks(on ? cut.marks() : new Map());
-    genTab.classList.toggle('on', !on);
-    cutTab.classList.toggle('on', on);
+  gal = gallery((g) => {
+    if (view === 'cut') return void (g.video && cut.toggle(g));
+    if (view === 'image') return edit.add(g);
+    result.show(g);
+  }, badgeMap, figs, (g) => toCut(g), groups);
+  function showView(v: View) {
+    view = v;
+    const stages: [View, HTMLElement, HTMLElement][] = [['generate', result.el, genTab], ['cut', cut.stage, cutTab], ['image', edit.stage, imgTab]];
+    for (const [k, el, tab] of stages) {
+      // Ausgeblendete Player verstummen, sonst läuft der Ton unsichtbar weiter
+      if (k !== v) el.querySelectorAll('video').forEach((x) => x.pause());
+      el.classList.toggle('hidden', k !== v);
+      tab.classList.toggle('on', k === v);
+    }
+    gal?.setMarks(v === 'cut' ? cut.marks() : new Map());
     try {
-      localStorage.setItem(VIEW, on ? 'cut' : 'generate');
+      localStorage.setItem(VIEW, v);
     } catch {
       // nur Bequemlichkeit
     }
-  };
+  }
   genTab.addEventListener('click', () => input?.closeTool());
-  cutTab.addEventListener('click', () => input?.openTool());
+  cutTab.addEventListener('click', () => input?.openTool(tools.cut));
+  imgTab.addEventListener('click', () => input?.openTool(tools.image));
   input = inputPanel(workflows, models, async (req, follow) => {
     const { id } = await api.generate(req);
     if (follow) result.follow(id);
-  }, () => result.refreshActions(), {
-    section: cut.settings,
-    submitLabel: t('cut.render'), busyLabel: t('cut.rendering'),
-    enter: () => showCut(true), leave: () => showCut(false), submit: () => cut.render(),
-  });
-  if (storedView() === 'cut') input.openTool();
+  }, () => result.refreshActions(), [tools.cut, tools.image]);
+  const stored = storedView();
+  if (stored === 'cut' || stored === 'image') input.openTool(tools[stored]);
 
-  root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, cut.stage, gal.el)));
+  root.replaceChildren(h('div', { class: 'app' }, topbar, h('main', { class: 'layout' }, input.el, result.el, cut.stage, edit.stage, gal.el)));
   subscribe((ev) => {
     if (ev.type === 'comfy') setComfy(ev.connected);
     // Startete ComfyUI nach der Seite, war „Dateien vorhanden?" noch unbekannt

@@ -73,8 +73,8 @@ export interface InputPanel {
   useFigure(id: string): void;
   /** Ein Job ist fertig: eigene Laufzeiten neu holen. */
   refreshTimes(): void;
-  /** Das Werkzeug (Schnitt) statt der Modell-Einstellungen zeigen. */
-  openTool(): void;
+  /** Ein Werkzeug (Schnitt, Bildbearbeitung) statt der Modell-Einstellungen zeigen. */
+  openTool(tool: Tool): void;
   /** Zurück zum zuletzt gewählten Modell. */
   closeTool(): void;
 }
@@ -198,7 +198,7 @@ function boolField(key: string, spec: FieldSpec): Field {
 const refToken = (token: string, n: number) => token.replace('{n}', String(n)).replace('{i}', String(n - 1));
 
 // Beschriftung wie das Format-Feld bei Text zu Bild
-const ASPECTS: [string, number][] = [['16:9 (Widescreen)', 16 / 9], ['9:16 (Portrait Widescreen)', 9 / 16], ['1:1 (Square)', 1],
+export const ASPECTS: [string, number][] = [['16:9 (Widescreen)', 16 / 9], ['9:16 (Portrait Widescreen)', 9 / 16], ['1:1 (Square)', 1],
   ['4:3 (Standard)', 4 / 3], ['3:4 (Portrait Standard)', 3 / 4], ['3:2 (Photo)', 3 / 2], ['2:3 (Portrait Photo)', 2 / 3], ['21:9 (Ultrawide)', 21 / 9]];
 
 function figurePicker(token: string, onChange: (n: number) => void): FigurePicker {
@@ -544,7 +544,7 @@ function loraWiring(wf: WorkflowInfo, fields: Map<string, Field>): (() => void) 
 /** Modus-Tabs, darunter die Modelle dieses Modus; das Formular entsteht aus der *.map.json. */
 export function inputPanel(
   workflows: WorkflowInfo[], models: ModelInfo[], onSubmit: (req: GenerateRequest, follow: boolean) => Promise<void>, onModelChange: () => void = () => {},
-  tool: Tool | null = null,
+  tools: Tool[] = [],
 ): InputPanel {
   const error = h('p', { class: 'form-error' });
   const setError = (msg: string) => { error.textContent = msg; };
@@ -605,9 +605,12 @@ export function inputPanel(
   const modelRow = h('div', { class: 'model-row' }, h('label', {}, h('span', { class: 'lbl' }, t('model.label')), modelSelect), licence, h('div', { class: 'bench' }, benchLine, ramLine, ownLine), missing);
   modelSelect.addEventListener('change', () => select(modelSelect.value));
   let toolOn = false;
+  let tool: Tool | null = null;
 
-  function openTool() {
-    if (!tool || toolOn) return;
+  function openTool(next: Tool) {
+    if (tool === next) return;
+    closeTool();
+    tool = next;
     toolOn = true;
     for (const x of [modelRow, tabsEl, count, pgBox, ...[...forms.values()].map((o) => o.section)]) x.classList.add('hidden');
     tool.section.classList.remove('hidden');
@@ -624,6 +627,7 @@ export function inputPanel(
     modelRow.classList.remove('hidden');
     tabsEl.classList.remove('hidden');
     tool.leave();
+    tool = null;
   }
 
   let mode: Mode = modes[0] ?? 't2i';
@@ -904,7 +908,7 @@ export function inputPanel(
   }
 
   select();
-  if (tool) sections.append(tool.section);
+  for (const x of tools) sections.append(x.section);
   const el = h('form', { class: 'panel input-panel', onsubmit: (e: Event) => void send(e) },
     modelRow, tabsEl,
     sections, h('div', { class: 'submit-row' }, submit, count), error, pgBox);
