@@ -6,7 +6,27 @@ import type { FieldSpec, Figure, FigureKind, FigureRequest, FigureSheetRequest, 
 /** Spricht nur mit dem eigenen Backend, nie direkt mit ComfyUI. */
 export const BASE = (process.env.BRENNGLAS_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
 
+const PKG = new URL('../../package.json', import.meta.url);
+const version = (): string | null => {
+  try {
+    return (JSON.parse(readFileSync(PKG, 'utf8')) as { version?: string }).version ?? null;
+  } catch {
+    return null;
+  }
+};
+const LOADED = version();
+
+/** Der Client hält den MCP-Prozess über ein Update hinweg; ohne Neustart fehlten neue Werkzeuge und Parameter still. */
+function staleCheck() {
+  const now = version();
+  if (LOADED && now && now !== LOADED) {
+    throw new Error(`Brennglas was updated to ${now}, but this MCP server still runs ${LOADED} and does not know the new tools and parameters. `
+      + 'Tell the user to restart the Claude app completely (also from the tray), or in Claude Code run /mcp, pick brennglas and Reconnect.');
+  }
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  staleCheck();
   let res: Response;
   try {
     res = await fetch(BASE + path, init);

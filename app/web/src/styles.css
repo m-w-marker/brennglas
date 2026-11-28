@@ -76,7 +76,7 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .gallery { border-left: 1px solid var(--line); }
 
 /* Eingabe */
-.input-panel { display: flex; flex-direction: column; gap: 20px; }
+.input-panel { display: flex; flex-direction: column; gap: 14px; }
 .tabs { display: flex; border-bottom: 1px solid var(--line); }
 .tab {
   padding: 0 0 10px; margin-right: 22px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
@@ -124,28 +124,31 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 .bar-hint { margin: 0; font-size: 11.5px; color: var(--faint); line-height: 1.5; }
 .button .to { font-size: inherit; color: var(--muted); }
 
-label, .field { display: flex; flex-direction: column; gap: 7px; }
+label, .field { display: flex; flex-direction: column; gap: 5px; }
 .lbl, label > .lbl {
   font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
 }
 textarea, select, input[type='text'] {
   width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--line);
-  border-radius: 0; padding: 10px 12px; font: inherit; font-size: 13.5px; outline: none;
+  border-radius: 0; padding: 7px 10px; font: inherit; font-size: 13px; outline: none;
   transition: border-color .15s;
 }
 textarea { resize: vertical; min-height: 140px; line-height: 1.55; }
 textarea:focus, select:focus, input:focus { border-color: var(--accent); }
 textarea::placeholder, input::placeholder { color: var(--faint); }
-select { appearance: none; cursor: pointer; padding-right: 30px; /* Platz für den Pfeil, auch bei width:auto */
+select { appearance: none; cursor: pointer; padding-right: 28px; /* Platz für den Pfeil, auch bei width:auto */
   background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
   background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%; background-size: 5px 5px; background-repeat: no-repeat;
 }
-.row { display: flex; }
-.row input { flex: 1; border-right: 0; font-family: var(--mono); font-size: 12.5px; }
+.row { display: flex; align-items: center; gap: 8px; }
+.row input { flex: 1; font-family: var(--mono); font-size: 12.5px; }
+/* Eingabe mit angehängtem Knopf (Seed + Würfel) bleibt nahtlos */
+.row:has(> button) { align-items: stretch; gap: 0; }
+.row:has(> button) > input { border-right: 0; }
 
 button, .button {
   background: transparent; color: var(--text); border: 1px solid var(--line-strong); border-radius: 0;
-  padding: 9px 14px; font: inherit; font-size: 12px; letter-spacing: .06em; cursor: pointer;
+  padding: 6px 12px; font: inherit; font-size: 12px; letter-spacing: .06em; cursor: pointer;
   text-decoration: none; text-align: center; transition: border-color .15s, background .15s, color .15s;
 }
 button:hover, .button:hover { border-color: var(--muted); background: var(--raise); }
@@ -154,7 +157,7 @@ button:disabled { opacity: .45; cursor: wait; }
 .icon:hover { color: var(--accent); }
 .primary {
   background: var(--text); color: #0c0d0f; border-color: var(--text); font-weight: 600;
-  text-transform: uppercase; letter-spacing: .14em; padding: 13px; margin-top: 4px;
+  text-transform: uppercase; letter-spacing: .14em; padding: 10px; margin-top: 2px;
 }
 .primary:hover { background: var(--accent); border-color: var(--accent); color: #0c0d0f; }
 .opt-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--warn); }
@@ -165,14 +168,14 @@ button:disabled { opacity: .45; cursor: wait; }
 .submit-row .primary { flex: 1; }
 .submit-row .count { width: auto; margin-top: 4px; font-family: var(--mono); }
 
-.sections, .section { display: flex; flex-direction: column; gap: 20px; }
+.sections, .section { display: flex; flex-direction: column; gap: 14px; }
 .segs { display: grid; grid-template-columns: repeat(var(--n, 3), 1fr); }
 input[type='number'], input[type='search'] {
   width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--line);
-  border-radius: 0; padding: 8px 10px; font: inherit; outline: none;
+  border-radius: 0; padding: 5px 8px; font: inherit; outline: none;
 }
 input[type='number'] { font-family: var(--mono); }
-.seg { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 12px; margin-left: -1px; }
+.seg { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 6px 10px; margin-left: -1px; }
 .seg:first-child { margin-left: 0; }
 .seg small { color: var(--faint); font-family: var(--mono); font-size: 11px; letter-spacing: 0; }
 .seg.on { border-color: var(--accent); background: var(--raise); position: relative; z-index: 1; }
@@ -323,8 +326,25 @@ label.check input:checked::after { transform: translateX(16px); background: var(
 .adv > summary::before { content: '▸ '; }
 .adv[open] > summary::before { content: '▾ '; }
 .adv > summary:hover { color: var(--text); }
-.adv-body { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
-input[type='range'] { flex: 1; accent-color: var(--accent); }
+.adv-body { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+/* Schieberegler schmal statt Browser-Standard: 2 px Spur, bis zum Knopf grün (--fill aus dom.ts), kleiner Knopf */
+input[type='range'] {
+  flex: 1; min-width: 0; height: 14px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 0%), var(--line-strong) var(--fill, 0%));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px; margin-top: -4px; border-radius: 50%; background: var(--accent); border: 0;
+}
+input[type='range']:hover::-webkit-slider-thumb, input[type='range']:focus-visible::-webkit-slider-thumb { background: var(--text); }
+input[type='range']::-moz-range-track { height: 2px; background: var(--line-strong); }
+input[type='range']::-moz-range-progress { height: 2px; background: var(--accent); }
+input[type='range']::-moz-range-thumb { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 0; }
+input[type='range']:focus { outline: none; }
+/* Regler untereinander enger als andere Felder */
+label:has(> .row > input[type='range']) { gap: 2px; }
+label:has(> .row > input[type='range']) + label:has(> .row > input[type='range']) { margin-top: -6px; }
 .slider-val { min-width: 48px; text-align: right; font-family: var(--mono); font-size: 12.5px; color: var(--muted); align-self: center; }
 
 /* Sprache */
@@ -416,6 +436,7 @@ input[type='range'] { flex: 1; accent-color: var(--accent); }
 .cut-head .button { padding: 4px 10px; }
 .cut-screen { position: relative; flex: 1; min-height: 180px; display: flex; }
 .cut-flag { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); padding: 4px 12px; background: rgba(50, 50, 50, .85); color: #ff8a1f; font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; pointer-events: none; max-width: 90%; text-align: center; }
+.cut-live { position: absolute; pointer-events: none; }
 .cut-inspect { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 8px 12px; border: 1px solid var(--line); background: var(--surface); }
 .cut-inspect-title { font-size: 12px; letter-spacing: .06em; white-space: nowrap; }
 .cut-inspect label, .cut-inspect .field { flex-direction: row; align-items: center; gap: 8px; }
@@ -485,6 +506,11 @@ input[type='range'] { flex: 1; accent-color: var(--accent); }
 .ie-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ie-mode { font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; }
 .ie-del { padding: 0 4px; font-size: 14px; line-height: 1; }
+.ie-add { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; }
+.ie-add .button { padding: 5px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Zahlenfeld neben dem Regler: schlug sonst input[type=number] { width: 100% } und wurde so breit wie der Regler */
+.ie-numbox { flex: none; }
+input.ie-num { flex: none; width: 50px; padding: 2px 4px; font-size: 12px; }
 .ie-numbox { display: flex; align-items: center; gap: 3px; align-self: center; }
 .ie-num { width: 58px; padding: 3px 5px; text-align: right; font-family: var(--mono); font-size: 12.5px; -moz-appearance: textfield; }
 .ie-num::-webkit-inner-spin-button, .ie-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

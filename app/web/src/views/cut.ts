@@ -1,7 +1,8 @@
-import type { Generation, ParamValue } from '@brennglas/shared';
+import { GRADE_KEYS, GRADE_LOOKS, gradeActive, gradeMin, NEUTRAL_GRADE, parseGrade, type Generation, type Grade, type GradeLook, type ParamValue } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, videoUrl } from '../api.ts';
 import { h } from '../dom.ts';
 import { lang, t } from '../i18n.ts';
+import { gradeLive } from './grade-live.ts';
 
 /** Schnittplatz → plan_schnitt: links die Einstellungen, in der Mitte Player, Prüfbereich und Filmstreifen. */
 const STORE = 'brennglas.cut';
@@ -36,11 +37,12 @@ interface State {
   endcard: string | null;
   endcardSeconds: number;
   format: 'mp4' | 'webm';
+  grade: Grade;
 }
 
 const fresh = (): State => ({
   shots: [], joins: [], def: { kind: 'fade', duration: 0.5 }, fadeIn: 0, fadeOut: 0, music: null, musicVolume: 0.8, shotVolume: 0.35,
-  logo: null, logoPosition: 'br', logoScale: 0.12, endcard: null, endcardSeconds: 2, format: 'mp4',
+  logo: null, logoPosition: 'br', logoScale: 0.12, endcard: null, endcardSeconds: 2, format: 'mp4', grade: { ...NEUTRAL_GRADE },
 });
 
 /** Fremde Daten aus dem Speicher: jedes Feld prüfen, sonst Vorgabe – ein alter Stand darf die App nie am Start hindern. */
@@ -75,6 +77,7 @@ function sane(raw: unknown): State {
     endcard: str(o.endcard),
     endcardSeconds: num(o.endcardSeconds, f.endcardSeconds, 1, 5),
     format: o.format === 'webm' ? 'webm' : 'mp4',
+    grade: parseGrade(o.grade) ?? f.grade,
   };
 }
 
@@ -137,6 +140,9 @@ export function cutView(onMarks: () => void): Cut {
   // Browser spielen nicht rückwärts: Schild über dem Bild statt Hinweis im Prüfbereich
   const flag = h('div', { class: 'cut-flag hidden' }, t('cut.reverseFlag'));
   const screen = h('div', { class: 'cut-screen' }, player, flag);
+  const live = gradeLive(player, screen);
+  /** Farbgebung live nur auf einzelnen Shots; Vorschau und Ergebnis haben sie schon eingerechnet. */
+  let liveOn = false;
   const inspector = h('div', { class: 'cut-inspect' });
   const strip = h('div', { class: 'cut-strip' });
   const error = h('p', { class: 'form-error' });
@@ -156,8 +162,10 @@ export function cutView(onMarks: () => void): Cut {
       .catch(() => { missing.add(s.id); drawStrip(); });
   }
 
-  function play(url: string, text: string, at = 0, rate = 1, reverse = false) {
+  function play(url: string, text: string, at = 0, rate = 1, reverse = false, shot = false) {
     flag.classList.toggle('hidden', !reverse);
+    liveOn = shot;
+    live.set(st.grade, liveOn);
     if (player.getAttribute('src') !== url) player.src = url;
     player.playbackRate = rate;
     const seek = () => { player.currentTime = at; };
@@ -182,9 +190,9 @@ export function cutView(onMarks: () => void): Cut {
   function select(kind: 'shot' | 'join', i: number) {
     sel = { kind, i };
     const s = st.shots[kind === 'shot' ? i : i + 1];
-    if (kind === 'shot' && s) play(videoUrl(s.id), t('cut.showShot', { n: i + 1 }), s.start, s.speed, s.reverse);
+    if (kind === 'shot' && s) play(videoUrl(s.id), t('cut.showShot', { n: i + 1 }), s.start, s.speed, s.reverse, true);
     // Übergang: den Anfang des zweiten Shots zeigen
-    if (kind === 'join' && s) play(videoUrl(s.id), t('cut.showJoin', { a: i + 1, b: i + 2 }), s.start, s.speed, s.reverse);
+    if (kind === 'join' && s) play(videoUrl(s.id), t('cut.showJoin', { a: i + 1, b: i + 2 }), s.start, s.speed, s.reverse, true);
     drawInspector();
     drawStrip();
   }
@@ -384,6 +392,32 @@ export function cutView(onMarks: () => void): Cut {
     return h('div', { class: 'field' }, h('span', { class: 'lbl' }, label), box);
   }
 
+  const LOOKS = ['neutral', ...Object.keys(GRADE_LOOKS)] as ('neutral' | GradeLook)[];
+  const signed = (x: number) => `${x > 0 ? '+' : ''}${Math.round(x * 100)}`;
+
+  function gradeFields(redraw: () => void): HTMLElement[] {
+    const same = (g: Grade) => GRADE_KEYS.every((k) => g[k] === st.grade[k]);
+    // Von Hand verstellt: keine Vorlage markiert
+    const current = LOOKS.find((l) => same(l === 'neutral' ? NEUTRAL_GRADE : GRADE_LOOKS[l])) ?? '';
+    const looks = segs<'neutral' | GradeLook | ''>(t('cut.look'), LOOKS, current, (l) => t(`cut.look.${l || 'neutral'}`), (l) => {
+      if (!l) return;
+      st.grade = { ...(l === 'neutral' ? NEUTRAL_GRADE : GRADE_LOOKS[l]) };
+      live.set(st.grade, liveOn);
+      redraw();
+    });
+    return [
+      h('span', { class: 'lbl' }, t('cut.grade')),
+      looks,
+      ...GRADE_KEYS.map((k) => slider(t(`cut.g.${k}`), gradeMin(k), 1, 0.05, st.grade[k], signed, (v) => {
+        st.grade[k] = Math.round(v * 100) / 100;
+        looks.querySelectorAll('.seg.on').forEach((b) => b.classList.remove('on'));
+        live.set(st.grade, liveOn);
+        save();
+      })),
+      h('p', { class: 'cut-hint' }, t('cut.gradeHint')),
+    ];
+  }
+
   function drawSettings() {
     const redraw = () => { save(); drawSettings(); };
     const defDur = slider(t('cut.duration'), 0.1, 2, 0.1, st.def.duration, sec, (v) => { st.def.duration = v; save(); });
@@ -419,6 +453,7 @@ export function cutView(onMarks: () => void): Cut {
         slider(t('cut.logoSize'), 0.05, 0.3, 0.01, st.logoScale, pct, (v) => { st.logoScale = v; save(); })] : []),
       imageDrop(t('cut.endcard'), st.endcard, (id) => { st.endcard = id; redraw(); }),
       ...(st.endcard ? [slider(t('cut.endcardSeconds'), 1, 5, 0.5, st.endcardSeconds, sec, (v) => { st.endcardSeconds = v; save(); })] : []),
+      ...gradeFields(redraw),
       segs(t('cut.format'), ['mp4', 'webm'] as const, st.format, (f) => f.toUpperCase(), (f) => { st.format = f; save(); }),
       h('div', { class: 'pg-actions' }, previewBtn, clearBtn),
     );
@@ -450,6 +485,8 @@ export function cutView(onMarks: () => void): Cut {
     sel = null;
     player.removeAttribute('src');
     flag.classList.add('hidden');
+    liveOn = false;
+    live.set(st.grade, false);
     player.load();
     status.textContent = '';
     save();
@@ -475,6 +512,7 @@ export function cutView(onMarks: () => void): Cut {
       ...(st.music ? { music: st.music.path, musicVolume: st.musicVolume, shotVolume: st.shotVolume } : {}),
       ...(st.logo ? { logo: st.logo, logoPosition: st.logoPosition, logoScale: st.logoScale } : {}),
       ...(st.endcard ? { endcard: st.endcard, endcardSeconds: st.endcardSeconds } : {}),
+      ...(gradeActive(st.grade) ? { grade: st.grade } : {}),
     };
   }
 
@@ -558,6 +596,7 @@ export function cutView(onMarks: () => void): Cut {
       endcard: typeof p.endcard === 'string' ? p.endcard : null,
       endcardSeconds: num(p.endcardSeconds, 2),
       format: p.format === 'webm' ? 'webm' : 'mp4',
+      grade: parseGrade(json(p.grade)) ?? { ...NEUTRAL_GRADE },
     };
     normalize();
     sel = null;
@@ -575,6 +614,7 @@ export function cutView(onMarks: () => void): Cut {
     undo.classList.add('hidden');
     sel = null;
     st.shots.forEach((s) => { probe(s); check(s); });
+    live.set(st.grade, liveOn);
     status.textContent = '';
     save();
     drawSettings();

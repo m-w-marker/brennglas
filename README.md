@@ -39,8 +39,8 @@ It is also an MCP server, so Claude can direct whole clips for you.
 - Text to video, image to video, first plus last frame, with sound. Camera presets, or exact camera paths with Wan Fun Camera.
 - [Layout to video](#layout-to-video): a grey 3D animation sets camera and motion, one rendered frame sets the look.
 - Upscaling of images to 8K, and of videos and render sequences to 4K.
-- A video editor for cuts, transitions, music, logo and end card.
-- An image editor to rework results between generations: layers, blend modes, opacity, brush and eraser, snapping, crop. Save to the gallery or send straight to an edit model.
+- A video editor for cuts, transitions, trimming, speed, reverse, color grading with film grain and vignette, music, logo and end card.
+- An image editor to rework results between generations: layers, blend modes, opacity, hue/saturation and levels adjustment layers, brush and eraser, snapping, crop. Save to the gallery or send straight to an edit model.
 - A prompt assistant that writes good English prompts from short notes in any language.
 - Gallery with search and series, live preview, queue. English and German interface.
 
@@ -111,7 +111,7 @@ Replace `<brennglas folder>` with your path, every backslash twice. With your ow
 }
 ```
 
-Tools: `generate_media`, `upscale_media` (images up to 8k, videos up to UHD), `wait_for_job`, `get_item`, `cancel_job`, `inspect_image` (full resolution crops), `list_figures`, `create_figure`, `update_figure` and `delete_figure` (characters), `extract_last_frame`, `concat_videos` (cut, transitions, music, logo, end card), `list_models`, `list_gallery`, `delete_item`, `enhance_prompt`. The server also gives Claude a short directing guide.
+Tools: `generate_media`, `upscale_media` (images up to 8k, videos up to UHD), `wait_for_job`, `get_item`, `cancel_job`, `inspect_image` (full resolution crops), `list_figures`, `create_figure`, `update_figure` and `delete_figure` (characters), `extract_last_frame`, `concat_videos` (cut, transitions, trim, speed, reverse, grading, music, logo, end card), `list_models`, `list_gallery`, `delete_item`, `enhance_prompt`. The server also gives Claude a short directing guide.
 
 If the tools do not show up, Settings → Developer shows the log; usually a path has single backslashes or Brennglas is not running.
 Other local (stdio) MCP clients such as Codex CLI or LM Studio should work but are not tested. Brennglas only listens on your own computer.

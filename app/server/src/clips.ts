@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeArgs, frameRate, planConcat, type ClipInfo, type ConcatExtras, type CutFormat, type Join, type ShotEdit } from './concat-plan.ts';
+import type { Grade } from '@brennglas/shared';
 import { toolPath } from './tools.ts';
 
 function run(tool: 'ffmpeg' | 'ffprobe', args: string[]): Promise<string> {
@@ -45,6 +46,8 @@ export interface ConcatOptions {
   logo?: { file: string; scale: number; position: 'tl' | 'tr' | 'bl' | 'br' };
   fadeIn?: number;
   fadeOut?: number;
+  /** Über alle Shots, nicht über Endkarte und Logo. */
+  grade?: Grade;
   format?: CutFormat;
   /** Klein und schnell, zum Ansehen vor dem Rendern. */
   preview?: boolean;
@@ -68,6 +71,7 @@ export async function concatClips(files: string[], o: ConcatOptions, out: string
   }
   const extras: ConcatExtras = {
     ...(o.fadeIn ? { fadeIn: o.fadeIn } : {}), ...(o.fadeOut ? { fadeOut: o.fadeOut } : {}), ...(o.preview ? { maxHeight: 480 } : {}),
+    ...(o.grade ? { grade: o.grade, endcard: !!o.endcard } : {}),
   };
   if (o.music) {
     if (!(await probeHasAudio(o.music.file))) throw new Error(`Keine Tonspur in ${o.music.file}`);

@@ -4,7 +4,7 @@ import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, rmS
 import { join } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import sharp from 'sharp';
-import { MAX_EXTRA_VIEWS, parseEditProject, SHEET_PANELS, SHEET_SIZE, sheetTemplateDefault } from '@brennglas/shared';
+import { gradeActive, MAX_EXTRA_VIEWS, parseEditProject, parseGrade, SHEET_PANELS, SHEET_SIZE, sheetTemplateDefault } from '@brennglas/shared';
 import type { ClaudeConfig, FigureKind, FigureSheetRequest, GenerateRequest, ImageSource, ModelInfo, UploadResult, WorkflowInfo } from '@brennglas/shared';
 import type { Workflow } from '../comfy/workflow.ts';
 import { concatClips, frameAt, probe, type ConcatOptions } from '../clips.ts';
@@ -412,6 +412,8 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       return { ...n('start'), ...n('end'), ...n('speed'), ...(e.reverse === true ? { reverse: true } : {}) };
     }) : undefined;
     if (edits && edits.length !== ids.length) return reply.code(400).send({ error: `edits braucht ${ids.length} Einträge, einen je Shot` });
+    const grade = body.grade === undefined ? null : parseGrade(body.grade);
+    if (body.grade !== undefined && !grade) return reply.code(400).send({ error: 'grade: { brightness, contrast, saturation, warmth, vignette, grain } erwartet' });
     const format: CutFormat = body.format === 'webm' ? 'webm' : 'mp4';
     const preview = body.preview === true;
     const files = ids.map(videoOf);
@@ -441,6 +443,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       ...(edits ? { edits } : {}),
       ...(fadeIn ? { fadeIn } : {}),
       ...(fadeOut ? { fadeOut } : {}),
+      ...(grade && gradeActive(grade) ? { grade } : {}),
       ...(endcard ? { endcard: { file: endcard, seconds: num('endcardSeconds', 2, 0.5, 10) } } : {}),
       ...(music ? { music: { file: music, volume: num('musicVolume', 0.8, 0, 2), shotVolume: num('shotVolume', 0.35, 0, 1) } } : {}),
       ...(logo ? { logo: { file: logo, scale: num('logoScale', 0.12, 0.03, 0.5), position } } : {}),
@@ -470,13 +473,14 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
       mkdirSync(join(dataDir, 'videos'), { recursive: true });
       const plan = await concatClips(files as string[], options, join(dataDir, videoPath));
       const saved = await saveOutput(dataDir, id, await frameAt(join(dataDir, videoPath), plan.duration / 2));
-      const extra = [music && 'Musik', logo && 'Logo', endcard && 'Endkarte'].filter(Boolean).join(', ');
+      const extra = [options.grade && 'Grading', music && 'Musik', logo && 'Logo', endcard && 'Endkarte'].filter(Boolean).join(', ');
       insertGeneration(db, {
         id, workflow: 'concat', prompt: `Schnitt aus ${ids.length} Shots${extra ? ` mit ${extra}` : ''}`,
         params: {
           shots: ids.join(','), fade, format, ...(joins ? { joins: JSON.stringify(joins) } : {}), ...(edits ? { edits: JSON.stringify(edits) } : {}),
           ...(endJoin ? { endJoin: JSON.stringify(endJoin) } : {}),
           ...(fadeIn ? { fadeIn } : {}), ...(fadeOut ? { fadeOut } : {}),
+          ...(options.grade ? { grade: JSON.stringify(options.grade) } : {}),
           // Angaben wie gesendet (Galerie-ID statt Pfad), damit der Schnittplatz den Schnitt wieder öffnen kann
           ...(options.music ? { music: options.music.file, musicVolume: options.music.volume, shotVolume: options.music.shotVolume } : {}),
           ...(options.logo ? { logo: String(body.logo), logoPosition: position, logoScale: options.logo.scale } : {}),

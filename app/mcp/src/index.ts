@@ -1,8 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { MAX_EXTRA_VIEWS } from '@brennglas/shared';
-import type { FieldSpec, Figure, FigureKind, FigureSheetRequest, Generation, ImageSource, ParamValue, WorkflowInfo } from '@brennglas/shared';
+import { GRADE_KEYS, GRADE_LOOKS, gradeMin, MAX_EXTRA_VIEWS } from '@brennglas/shared';
+import type { FieldSpec, Grade, GradeLook, Figure, FigureKind, FigureSheetRequest, Generation, ImageSource, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { z } from 'zod';
 import { BASE, backend, en, galleryVideoFile, resolveEnum, toSource, toVideo, upscaleKind } from './backend.ts';
 
@@ -23,8 +23,10 @@ Work like a director when asked for a film, spot or sequence:
    0.3 to 0.8 for soft transitions).
 5. Finish in concat_videos, not in the model: one continuous music track (music, the shots' own sounds are ducked under it), the logo
    as a sharp overlay (logo) and an end card image (endcard). Never let the video model render logos or lettering; it smears.
-   A dip to black (transition fadeblack) separates scenes, fade_in/fade_out open from and end on black. The user can open the
-   result in Brennglas' editor (tab "Video editor" / "Schnitt" in the top bar) to trim shots, change single transitions and render again.
+   A dip to black (transition fadeblack) separates scenes, fade_in/fade_out open from and end on black. Trim, speed up or reverse
+   single shots with edits. Give the whole film one look with grade (or a ready look), not shot by shot in the prompts: the same
+   grade over all shots ties them together; logo and end card stay ungraded. The user can open the result in Brennglas' editor
+   (tab "Video editor" / "Schnitt" in the top bar) to trim shots, change single transitions or the grading and render again.
 Known LTX limits and what helps:
 - Camera presets are text appended to the prompt, not a camera path. "Tracking shot" is a sideways move; for a subject walking
   towards the camera use "Lead shot (subject walks towards camera)" or "Slow pull out" and say "full body in frame".
@@ -560,12 +562,24 @@ server.registerTool('concat_videos', {
     logo_scale: z.number().min(0.03).max(0.5).default(0.12).describe('Logo width as a share of the video width'),
     endcard: z.string().optional().describe('Gallery id or absolute path of an image appended as the last shot'),
     endcard_seconds: z.number().min(0.5).max(10).default(2).describe('How long the end card is shown'),
+    edits: z.array(z.object({
+      start: z.number().min(0).optional().describe('Seconds into the source where the shot starts'),
+      end: z.number().min(0).optional().describe('Seconds into the source where the shot ends'),
+      speed: z.number().min(0.5).max(2).optional().describe('Playback speed, 1 = unchanged'),
+      reverse: z.boolean().optional().describe('Play backwards; the shot loses its own sound'),
+    })).optional().describe('One entry per id, same order ({} = unchanged): trim, speed and direction of each shot'),
+    look: z.enum(Object.keys(GRADE_LOOKS) as [GradeLook, ...GradeLook[]]).optional()
+      .describe('Ready grading: warm, cool, film (contrast, slight vignette and grain), muted (desaturated); grade values override it'),
+    grade: z.object(Object.fromEntries(GRADE_KEYS.map((k) => [k, z.number().min(gradeMin(k)).max(1).optional()])) as Record<keyof Grade, z.ZodOptional<z.ZodNumber>>)
+      .optional().describe('Grading over all shots, 0 = unchanged: brightness, contrast, saturation, warmth (-1 cool … 1 warm) each -1 to 1, '
+        + 'vignette and grain 0 to 1. Subtle values (0.1 to 0.4) look best; grain makes the file 2 to 3 times larger'),
   },
-}, async ({ ids, fade, transition, fade_in, fade_out, format, music, music_volume, shot_volume, logo, logo_position, logo_scale, endcard, endcard_seconds }) => {
+}, async ({ ids, fade, transition, fade_in, fade_out, format, music, music_volume, shot_volume, logo, logo_position, logo_scale, endcard, endcard_seconds, edits, look, grade }) => {
   try {
     const join = { duration: fade, type: transition };
+    const g = look || grade ? { ...(look ? GRADE_LOOKS[look] : {}), ...Object.fromEntries(Object.entries(grade ?? {}).filter(([, v]) => v !== undefined)) } : null;
     return await report(await backend.concat({
-      ids, fade, format, fadeIn: fade_in, fadeOut: fade_out,
+      ids, fade, format, fadeIn: fade_in, fadeOut: fade_out, ...(edits ? { edits } : {}), ...(g ? { grade: g } : {}),
       ...(fade > 0 && transition !== 'fade' ? { joins: ids.slice(1).map(() => join), endJoin: join } : {}),
       musicVolume: music_volume, shotVolume: shot_volume, logoPosition: logo_position, logoScale: logo_scale,
       endcardSeconds: endcard_seconds, ...(music ? { music } : {}), ...(logo ? { logo } : {}), ...(endcard ? { endcard } : {}),

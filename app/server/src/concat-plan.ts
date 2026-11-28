@@ -1,3 +1,5 @@
+import { gradeNumbers, type Grade } from '@brennglas/shared';
+
 /** Eckdaten eines Shots laut ffprobe. */
 export interface ClipInfo {
   duration: number;
@@ -48,6 +50,32 @@ export interface ConcatExtras {
   fadeOut?: number;
   /** Höhe deckeln, für die schnelle Vorschau. */
   maxHeight?: number;
+  grade?: Grade;
+  /** Der letzte Clip ist die Endkarte: bleibt ohne Grading, wie das Logo. */
+  endcard?: boolean;
+}
+
+/** Grading als Fortsetzung der Shot-Kette i nach Größe und fps, leer wenn neutral; Korn zuletzt, nur auf der Helligkeit, je Frame neu. */
+export function gradeFilter(g: Grade, w: number, h: number, fps: number, i: number): string {
+  const f: string[] = [];
+  const n = gradeNumbers(g);
+  const eq = [
+    g.brightness && `gamma=${round(n.gamma)}`,
+    g.contrast && `contrast=${round(n.contrast)}`,
+    g.saturation && `saturation=${round(n.saturation)}`,
+  ].filter(Boolean);
+  if (eq.length) f.push(`eq=${eq.join(':')}`);
+  // gemessen an Grau: 3500 K → 164/124/91
+  if (g.warmth) f.push(`colortemperature=temperature=${n.kelvin}:pl=1`);
+  if (g.vignette) {
+    // ffmpegs vignette ändert per Winkel nur die Form (cos⁴ bis zur Bildmitte): eigene Maske, Mitte frei, weich zu den Ecken
+    const r0 = round(n.vignetteFrom);
+    const lum = `st(0,clip((hypot((X-W/2)/(W/2),(Y-H/2)/(H/2))/sqrt(2)-${r0})/${round(1 - r0)},0,1));255*(1-${round(n.vignetteDepth)}*ld(0)*ld(0)*(3-2*ld(0)))`;
+    f.push(`format=gbrp[g${i}];color=c=white:s=${w}x${h}:r=${fps},trim=end_frame=1,format=gray,geq=lum='${lum}',loop=loop=-1:size=1,format=gbrp[m${i}];`
+      + `[g${i}][m${i}]blend=all_mode=multiply:shortest=1`);
+  }
+  if (!f.length && !g.grain) return '';
+  return `${f.length ? `,${f.join(',')}` : ''},format=yuv420p${g.grain ? `,noise=c0s=${n.grain}:c0f=t+u` : ''}`;
 }
 
 /** Bildrate aus ffprobe: avg_frame_rate stimmt auch bei variabler Rate (Handy, OBS), r_frame_rate meldet dort oft 90000. */
@@ -98,6 +126,7 @@ export function planConcat(clips: ClipInfo[], joins: number | (number | Join)[],
   const h = Math.round((first.height * shrink) / 2) * 2;
   const fps = first.fps;
   const parts: string[] = [];
+  const graded = clips.length - (extras.endcard ? 1 : 0);
   clips.forEach((c, i) => {
     const e = cuts[i] ?? {};
     const len = round(lengths[i] as number);
@@ -107,7 +136,7 @@ export function planConcat(clips: ClipInfo[], joins: number | (number | Join)[],
     const vPre = cut || speed !== 1 || e.reverse
       ? `${cut ? `trim=start=${e.start ?? 0}:end=${e.end ?? c.duration},` : ''}${e.reverse ? 'setpts=PTS-STARTPTS,reverse,' : ''}setpts=${speed === 1 ? 'PTS-STARTPTS' : `(PTS-STARTPTS)/${speed}`},` : '';
     const aPre = `${cut ? `atrim=start=${e.start ?? 0}:end=${e.end ?? c.duration},asetpts=PTS-STARTPTS,` : ''}${speed !== 1 ? `atempo=${speed},` : ''}`;
-    parts.push(`[${i}:v]${vPre}scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p,settb=AVTB[v${i}]`);
+    parts.push(`[${i}:v]${vPre}scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${fps},format=yuv420p${extras.grade && i < graded ? gradeFilter(extras.grade, w, h, fps, i) : ''},settb=AVTB[v${i}]`);
     parts.push(c.hasAudio && !e.reverse
       // apad: LTX-Ton ist ~30 ms kürzer als das Bild; ohne Auffüllen läuft der Ton bei jeder Blende weiter vor
       ? `[${i}:a]${aPre}aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,atrim=duration=${len},apad=whole_dur=${len}[a${i}]`

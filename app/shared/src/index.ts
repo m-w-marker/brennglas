@@ -330,8 +330,38 @@ export type BlendMode = (typeof BLEND_MODES)[number];
 export const EDIT_MAX_PIXELS = 2048 * 2048;
 export const EDIT_MAX_LAYERS = 40;
 export type LayerSource = { kind: 'output' | 'input'; id: string };
+/** Einstellungsebene, wirkt auf alles darunter: Farbton −180 … 180°, Sättigung und Helligkeit −1 … 1; Tonwerte auf 0 … 255, Gamma 0,1 … 10. */
+export type Adjust =
+  | { type: 'hsl'; hue: number; saturation: number; lightness: number }
+  | { type: 'levels'; black: number; white: number; gamma: number };
+export const ADJUST_DEFAULT = {
+  hsl: { type: 'hsl', hue: 0, saturation: 0, lightness: 0 },
+  levels: { type: 'levels', black: 0, white: 255, gamma: 1 },
+} as const satisfies Record<Adjust['type'], Adjust>;
+
+/** Je Kanal auf 0 … 1: out = (slope · in + intercept) ^ exponent, danach auf 0 … 1 begrenzt (wie feComponentTransfer linear, dann gamma). */
+export interface Transfer { slope: number; intercept: number; exponent: number }
+/** Tonwerte: Schwarzpunkt → 0, Weißpunkt → 1, Gamma > 1 hellt die Mitteltöne auf. */
+export function levelsTransfer(a: { black: number; white: number; gamma: number }): Transfer {
+  const span = (a.white - a.black) / 255;
+  return { slope: 1 / span, intercept: -a.black / 255 / span, exponent: 1 / a.gamma };
+}
+/** Helligkeit wie in Bildprogrammen: +1 = weiß, −1 = schwarz, dazwischen linear zum Ziel gemischt. */
+export function lightnessTransfer(l: number): Transfer {
+  return l >= 0 ? { slope: 1 - l, intercept: l, exponent: 1 } : { slope: 1 + l, intercept: 0, exponent: 1 };
+}
+export const applyTransfer = (f: Transfer, v: number): number => Math.min(1, Math.max(0, Math.min(1, Math.max(0, f.slope * v + f.intercept)) ** f.exponent));
+
+function parseAdjust(raw: unknown): Adjust | null {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const num = (v: unknown, d: number, min: number, max: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : d);
+  if (o.type === 'hsl') return { type: 'hsl', hue: num(o.hue, 0, -180, 180), saturation: num(o.saturation, 0, -1, 1), lightness: num(o.lightness, 0, -1, 1) };
+  if (o.type !== 'levels') return null;
+  const black = Math.round(num(o.black, 0, 0, 253));
+  return { type: 'levels', black, white: Math.round(num(o.white, 255, black + 2, 255)), gamma: num(o.gamma, 1, 0.1, 10) };
+}
 export interface EditLayer {
-  kind: 'image' | 'fill';
+  kind: 'image' | 'fill' | 'adjust';
   name: string;
   visible: boolean;
   opacity: number;
@@ -345,6 +375,8 @@ export interface EditLayer {
   color?: string;
   /** Nur Bildebene. */
   src?: LayerSource;
+  /** Nur Einstellungsebene. */
+  adjust?: Adjust;
 }
 export interface EditProject { width: number; height: number; layers: EditLayer[] }
 
@@ -368,6 +400,10 @@ export function parseEditProject(raw: unknown): EditProject | null {
       scale: num(l.scale, 1, 0.01, 20),
       flip: l.flip === true,
     };
+    if (l.kind === 'adjust') {
+      const adjust = parseAdjust(l.adjust);
+      return adjust ? [{ kind: 'adjust', ...base, adjust }] : [];
+    }
     if (l.kind === 'fill') return [{ kind: 'fill', ...base, color: typeof l.color === 'string' && /^#[0-9a-f]{6}$/i.test(l.color) ? l.color : '#ffffff' }];
     const s = (l.src && typeof l.src === 'object' ? l.src : {}) as Record<string, unknown>;
     if (l.kind !== 'image' || (s.kind !== 'output' && s.kind !== 'input') || typeof s.id !== 'string' || !/^[0-9a-f-]{36,64}$/.test(s.id)) return [];
@@ -397,4 +433,48 @@ export const ZOOM_LEVELS = [0.05, 0.1, 1 / 8, 1 / 6, 0.25, 1 / 3, 0.5, 2 / 3, 0.
 export function zoomStep(s: number, dir: 1 | -1): number {
   if (dir > 0) return ZOOM_LEVELS.find((z) => z > s * 1.001) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1] ?? s;
   return [...ZOOM_LEVELS].reverse().find((z) => z < s / 1.001) ?? ZOOM_LEVELS[0] ?? s;
+}
+
+/** Grading im Schnitt, je Regler 0 = unverändert: Helligkeit, Kontrast, Sättigung, Wärme −1 … 1, Vignette und Korn 0 … 1. */
+export interface Grade { brightness: number; contrast: number; saturation: number; warmth: number; vignette: number; grain: number }
+export const GRADE_KEYS = ['brightness', 'contrast', 'saturation', 'warmth', 'vignette', 'grain'] as const;
+export const gradeMin = (k: keyof Grade): number => (k === 'vignette' || k === 'grain' ? 0 : -1);
+export const NEUTRAL_GRADE: Grade = { brightness: 0, contrast: 0, saturation: 0, warmth: 0, vignette: 0, grain: 0 };
+
+/** Fertige Looks belegen nur die Regler vor. */
+export const GRADE_LOOKS = {
+  warm: { ...NEUTRAL_GRADE, contrast: 0.1, saturation: 0.1, warmth: 0.35 },
+  cool: { ...NEUTRAL_GRADE, contrast: 0.1, saturation: -0.1, warmth: -0.35 },
+  film: { ...NEUTRAL_GRADE, contrast: 0.2, saturation: -0.15, warmth: 0.1, vignette: 0.4, grain: 0.35 },
+  muted: { ...NEUTRAL_GRADE, brightness: 0.05, contrast: -0.1, saturation: -0.5 },
+} as const satisfies Record<string, Grade>;
+export type GradeLook = keyof typeof GRADE_LOOKS;
+
+/** Fremde Daten (Request, gespeicherte Parameter): fehlende Regler 0, alles in den Bereich; kein Objekt → null. */
+export function parseGrade(raw: unknown): Grade | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const g = { ...NEUTRAL_GRADE };
+  for (const k of GRADE_KEYS) {
+    const v = o[k];
+    if (typeof v === 'number' && Number.isFinite(v)) g[k] = Math.round(Math.min(1, Math.max(gradeMin(k), v)) * 1000) / 1000;
+  }
+  return g;
+}
+
+export const gradeActive = (g: Grade): boolean => GRADE_KEYS.some((k) => g[k] !== 0);
+
+/** Zahlen hinter den Reglern, eine Quelle für ffmpeg und die Live-Ansicht. Vignette: Maske 1 − depth·smoothstep(from, 1, r), r = 1 in den Ecken. */
+export function gradeNumbers(g: Grade) {
+  return {
+    gamma: 2 ** g.brightness,
+    contrast: 1 + g.contrast * 0.5,
+    saturation: 1 + g.saturation,
+    // weniger Kelvin = wärmer, 6500 K = neutral
+    kelvin: Math.round(6500 - g.warmth * 3000),
+    vignetteFrom: 0.55 - 0.25 * g.vignette,
+    vignetteDepth: 0.8 * g.vignette,
+    /** Stärke des ffmpeg-Filters noise: gleichverteilt ± diese Zahl auf 0 … 255. */
+    grain: Math.round(g.grain * 30),
+  };
 }

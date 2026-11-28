@@ -1,7 +1,7 @@
-import { BLEND_MODES, EDIT_MAX_LAYERS, EDIT_MAX_PIXELS, parseEditProject, snapAxis, zoomStep } from '@brennglas/shared';
-import type { BlendMode, EditLayer, EditProject, Generation, LayerSource } from '@brennglas/shared';
+import { ADJUST_DEFAULT, BLEND_MODES, EDIT_MAX_LAYERS, EDIT_MAX_PIXELS, levelsTransfer, lightnessTransfer, parseEditProject, snapAxis, zoomStep } from '@brennglas/shared';
+import type { Adjust, BlendMode, EditLayer, EditProject, Generation, LayerSource } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, inputUrl } from '../api.ts';
-import { h } from '../dom.ts';
+import { fillRange, h } from '../dom.ts';
 import { t } from '../i18n.ts';
 import { ASPECTS } from './input-panel.ts';
 
@@ -24,7 +24,7 @@ const HISTORY = 40;
 const SNAP_PX = 8;
 
 interface Layer {
-  kind: 'image' | 'fill';
+  kind: 'image' | 'fill' | 'adjust';
   name: string;
   visible: boolean;
   opacity: number;
@@ -38,6 +38,8 @@ interface Layer {
   canvas: HTMLCanvasElement | null;
   /** Wo die Pixel unverändert liegen; null = neu oder bemalt, wird beim Speichern hochgeladen. */
   src: LayerSource | null;
+  /** Einstellungsebene; wird beim Ändern ersetzt, nie verändert (der Verlauf hält Verweise). */
+  adjust: Adjust | null;
 }
 type Meta = Omit<Layer, 'canvas' | 'src'>;
 interface Snap { w: number; h: number; layers: Layer[]; meta: Meta[]; active: Layer | null }
@@ -119,7 +121,7 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
 
   // --- Verlauf ---
   const metaOf = (l: Layer): Meta => ({
-    kind: l.kind, name: l.name, visible: l.visible, opacity: l.opacity, blend: l.blend, x: l.x, y: l.y, scale: l.scale, flip: l.flip, color: l.color,
+    kind: l.kind, name: l.name, visible: l.visible, opacity: l.opacity, blend: l.blend, x: l.x, y: l.y, scale: l.scale, flip: l.flip, color: l.color, adjust: l.adjust,
   });
   const snap = (): Snap => ({ w: docW, h: docH, layers: [...layers], meta: layers.map(metaOf), active });
   function restore(s: Snap) {
@@ -312,6 +314,8 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       if (l.kind === 'fill') {
         c.fillStyle = l.color;
         c.fillRect(dx, dy, docW * s, docH * s);
+      } else if (l.kind === 'adjust') {
+        if (l.adjust) adjustBelow(c, l);
       } else if (l.canvas) {
         const src = stroke?.layer === l ? strokeMix(l.canvas) : l.canvas;
         c.setTransform((l.flip ? -1 : 1) * l.scale * s, 0, 0, l.scale * s, (l.x + (l.flip ? l.canvas.width * l.scale : 0)) * s + dx, l.y * s + dy);
@@ -320,6 +324,66 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       c.restore();
     }
     c.restore();
+  }
+
+  // Einstellungsebenen: je Ebene ein SVG-Filter (sRGB wie Bildprogramme) auf einer Kopie des bisher Gemischten
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const svgNode = (tag: string, attrs: Record<string, string | number>) => {
+    const n = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+    return n;
+  };
+  const svg = svgNode('svg', { style: 'position:absolute;width:0;height:0', 'aria-hidden': 'true' });
+  const filters = new WeakMap<Layer, { id: string; el: Element; key: string }>();
+  let filterN = 0;
+  const below = canvasOf(1, 1);
+  // ctx.filter = url(#…) findet nur Filter, die im Dokument hängen
+  stage.append(svg);
+  function filterOf(l: Layer, a: Adjust, alpha: number | null): string {
+    let f = filters.get(l);
+    if (!f) {
+      f = { id: `ie-adjust-${++filterN}`, el: svgNode('filter', { 'color-interpolation-filters': 'sRGB' }), key: '' };
+      f.el.id = f.id;
+      svg.append(f.el);
+      filters.set(l, f);
+    }
+    const key = `${JSON.stringify(a)}|${alpha}`;
+    if (f.key === key) return f.id;
+    f.key = key;
+    // je Kanal entweder linear oder gamma; Tonwerte brauchen beides nacheinander
+    const rgb = (fn: Record<string, string | number>) => {
+      const ct = svgNode('feComponentTransfer', {});
+      for (const ch of ['R', 'G', 'B']) ct.append(svgNode(`feFunc${ch}`, fn));
+      return ct;
+    };
+    if (a.type === 'hsl') {
+      const lt = lightnessTransfer(a.lightness);
+      f.el.replaceChildren(svgNode('feColorMatrix', { type: 'hueRotate', values: a.hue }), svgNode('feColorMatrix', { type: 'saturate', values: 1 + a.saturation }),
+        rgb({ type: 'linear', slope: lt.slope, intercept: lt.intercept }));
+    } else {
+      const lv = levelsTransfer(a);
+      f.el.replaceChildren(rgb({ type: 'linear', slope: lv.slope, intercept: lv.intercept }), rgb({ type: 'gamma', amplitude: 1, exponent: lv.exponent, offset: 0 }));
+    }
+    // Deckkraft der Ebene statt der darunter: source-atop behält dann die Deckkraft darunter (globalAlpha wirkte vor dem Filter und ginge verloren)
+    if (alpha !== null) f.el.append(svgNode('feComponentTransfer', {}).appendChild(svgNode('feFuncA', { type: 'linear', slope: 0, intercept: alpha })).parentNode as Element);
+    return f.id;
+  }
+  /** Kopie von allem darunter, gefiltert und mit Deckkraft und Mischmodus der Ebene darübergelegt; Normal hält die Deckkraft darunter genau (halbtransparente Kanten). */
+  function adjustBelow(c: CanvasRenderingContext2D, l: Layer) {
+    const cv = c.canvas;
+    if (below.width !== cv.width || below.height !== cv.height) Object.assign(below, { width: cv.width, height: cv.height });
+    const b = ctx2d(below);
+    b.globalCompositeOperation = 'copy';
+    b.drawImage(cv, 0, 0);
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    const normal = l.blend === 'normal';
+    // grenze: andere Mischmodi über Halbtransparentem decken etwas mehr, ab Bedarf dort ebenfalls auf eine eigene Mischung
+    if (normal) {
+      c.globalCompositeOperation = 'source-atop';
+      c.globalAlpha = 1;
+    }
+    c.filter = `url(#${filterOf(l, l.adjust as Adjust, normal ? l.opacity : null)})`;
+    c.drawImage(below, 0, 0);
   }
 
   // --- Malen ---
@@ -532,7 +596,7 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
     active = l;
   }
   const layerOf = (kind: Layer['kind'], name: string, extra: Partial<Layer> = {}): Layer => ({
-    kind, name, visible: true, opacity: 1, blend: 'normal', x: 0, y: 0, scale: 1, flip: false, color: '#ffffff', canvas: null, src: null, ...extra,
+    kind, name, visible: true, opacity: 1, blend: 'normal', x: 0, y: 0, scale: 1, flip: false, color: '#ffffff', canvas: null, src: null, adjust: null, ...extra,
   });
   /** Bild als Ebene: auf eine leere Fläche in Originalgröße, sonst eingepasst und mittig. */
   function placeImage(canvas: HTMLCanvasElement, name: string, src: LayerSource | null) {
@@ -569,6 +633,10 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
   function addFill() {
     if (!docW) return void (error.textContent = t('ie.needCanvas'));
     change(() => insert(layerOf('fill', t('ie.layerFill'), { color: brush.color })));
+  }
+  function addAdjust(type: Adjust['type']) {
+    if (!docW) return void (error.textContent = t('ie.needCanvas'));
+    change(() => insert(layerOf('adjust', t(type === 'hsl' ? 'ie.layerHsl' : 'ie.layerLevels'), { adjust: { ...ADJUST_DEFAULT[type] } })));
   }
   function newCanvas() {
     const [w, hh] = sizeFor(newAspect, newMp);
@@ -618,7 +686,7 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
     const parts = layers.map((l) => ({
       l, src: l.src, pix: pixRev.get(l) ?? 0,
       blob: l.kind === 'image' && l.canvas && !l.src ? toBlob(l.canvas) : null,
-      meta: { kind: l.kind, name: l.name, visible: l.visible, opacity: l.opacity, blend: l.blend, x: l.x, y: l.y, scale: l.scale, flip: l.flip, color: l.color },
+      meta: { kind: l.kind, name: l.name, visible: l.visible, opacity: l.opacity, blend: l.blend, x: l.x, y: l.y, scale: l.scale, flip: l.flip, color: l.color, adjust: l.adjust },
     }));
     // Bricht ein Upload ab, sollen die übrigen Kodierungen nicht als unbehandelte Fehler auflaufen
     for (const p of [image, ...parts.map((x) => x.blob)]) p?.catch(() => {});
@@ -630,8 +698,8 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
           src = { kind: 'input', id: (await api.upload(await p.blob)).inputId };
           if ((pixRev.get(p.l) ?? 0) === p.pix) p.l.src = src;
         }
-        const { color, ...rest } = p.meta;
-        saved.push(p.meta.kind === 'fill' ? { ...rest, color } : { ...rest, ...(src ? { src } : {}) });
+        const { color, adjust, ...rest } = p.meta;
+        saved.push(rest.kind === 'fill' ? { ...rest, color } : rest.kind === 'adjust' && adjust ? { ...rest, adjust } : { ...rest, ...(src ? { src } : {}) });
       }
       const { inputId } = await api.upload(await image);
       const g = await api.imageEdit(inputId, { width: w, height: hh, layers: saved });
@@ -665,6 +733,10 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       const loaded: Layer[] = [];
       const lost: string[] = [];
       for (const l of p.layers) {
+        if (l.kind === 'adjust') {
+          loaded.push(layerOf('adjust', l.name, { ...l, color: '#ffffff', adjust: l.adjust ?? null }));
+          continue;
+        }
         if (l.kind === 'fill') {
           loaded.push(layerOf('fill', l.name, { ...l, color: l.color ?? '#ffffff' }));
           continue;
@@ -748,24 +820,27 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
   });
 
   /** Regler mit Zahlenfeld: live beim Ziehen, getippt mit Enter oder Wegklicken; ein Verlaufsschritt je Änderung (sofern hist). */
-  function slider(label: string, min: number, max: number, step: number, value: number, unit: '%' | 'px', onInput: (v: number) => void, hist = true): HTMLElement {
+  function slider(label: string, min: number, max: number, step: number, value: number, unit: '%' | 'px' | '°' | '', onInput: (v: number) => void, hist = true): HTMLElement {
     const f = unit === '%' ? 100 : 1;
+    // Gamma braucht Nachkommastellen, alles andere ganze Zahlen
+    const show = (v: number) => (unit === '' && step < 1 ? v.toFixed(2) : String(Math.round(v * f)));
     const input = h('input', { type: 'range', min, max, step, value: String(value) });
-    const num = h('input', { type: 'number', class: 'ie-num', min: min * f, max: max * f, step: 'any', value: String(Math.round(value * f)) });
+    const num = h('input', { type: 'number', class: 'ie-num', min: min * f, max: max * f, step: 'any', value: show(value) });
     const apply = (v: number) => {
       if (hist) begin();
       onInput(v);
       redraw();
     };
     input.addEventListener('input', () => {
-      num.value = String(Math.round(Number(input.value) * f));
+      num.value = show(Number(input.value));
       apply(Number(input.value));
     });
     num.addEventListener('change', () => {
       const typed = Number(num.value.replace(',', '.'));
       const v = Number.isFinite(typed) && num.value !== '' ? Math.min(max, Math.max(min, typed / f)) : Number(input.value);
-      num.value = String(Math.round(v * f));
+      num.value = show(v);
       input.value = String(v);
+      fillRange(input);
       apply(v);
       if (hist) { commit(); drawPanel(); }
     });
@@ -796,7 +871,8 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       const i = layers.indexOf(l);
       const eye = h('button', { type: 'button', class: `ie-eye${l.visible ? ' on' : ''}`, title: t('ie.visible') }, l.visible ? '●' : '○');
       eye.addEventListener('click', (e) => { e.stopPropagation(); change(() => { l.visible = !l.visible; }); });
-      const swatch = h('span', { class: 'ie-swatch', style: l.kind === 'fill' ? `background:${l.color}` : '' }, l.kind === 'fill' ? '' : '▦');
+      const mark = l.kind === 'fill' ? '' : l.adjust?.type === 'hsl' ? '◐' : l.adjust ? '▤' : '▦';
+      const swatch = h('span', { class: 'ie-swatch', style: l.kind === 'fill' ? `background:${l.color}` : '' }, mark);
       const row = h('div', { class: `ie-layer${l === active ? ' on' : ''}${l.visible ? '' : ' off'}`, draggable: true },
         eye, swatch, h('span', { class: 'ie-name' }, l.name || t('ie.layerImage')),
         h('span', { class: 'ie-mode' }, l.blend === 'normal' ? '' : t(BLEND_KEY[l.blend])),
@@ -838,6 +914,25 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
         l.kind === 'fill' ? h('label', {}, h('span', { class: 'lbl' }, t('ie.color')), colorInput(l.color, (v) => { begin(); l.color = v; }, () => { commit(); drawPanel(); })) : null),
       slider(t('ie.opacity'), 0, 1, 0.01, l.opacity, '%', (v) => { l.opacity = v; }),
     ];
+    const a = l.adjust;
+    // Neues Objekt je Änderung: der Verlauf hält Verweise auf die alten Werte
+    const setA = (patch: Partial<Adjust>) => { l.adjust = { ...(l.adjust as Adjust), ...patch } as Adjust; };
+    const lv = () => l.adjust as Extract<Adjust, { type: 'levels' }>;
+    if (a?.type === 'hsl') {
+      out.push(
+        slider(t('ie.hue'), -180, 180, 1, a.hue, '°', (v) => setA({ hue: v })),
+        slider(t('ie.saturation'), -1, 1, 0.01, a.saturation, '%', (v) => setA({ saturation: v })),
+        slider(t('ie.lightness'), -1, 1, 0.01, a.lightness, '%', (v) => setA({ lightness: v })),
+      );
+    }
+    if (a?.type === 'levels') {
+      out.push(
+        slider(t('ie.black'), 0, 253, 1, a.black, '', (v) => setA({ black: Math.min(v, lv().white - 2) })),
+        slider(t('ie.white'), 2, 255, 1, a.white, '', (v) => setA({ white: Math.max(v, lv().black + 2) })),
+        slider(t('ie.gamma'), 0.1, 10, 0.01, a.gamma, '', (v) => setA({ gamma: v })),
+      );
+    }
+    if (a) out.push(h('button', { type: 'button', class: 'button ghost', onclick: () => change(() => { l.adjust = { ...ADJUST_DEFAULT[a.type] }; }) }, t('ie.adjustReset')));
     if (l.kind === 'image' && l.canvas) {
       const c = l.canvas;
       out.push(
@@ -856,6 +951,12 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       );
     }
     return out;
+  }
+
+  /** Beschriftete Knopfgruppe auf einem Raster, einzeilig; der volle Text steht im Tooltip. */
+  function addRow(label: string, items: [string, () => void][]): HTMLElement {
+    return h('div', { class: 'field' }, h('span', { class: 'lbl' }, label),
+      h('div', { class: 'ie-add', style: `--n:${items.length}` }, ...items.map(([text, fn]) => h('button', { type: 'button', class: 'button ghost', title: text, onclick: fn }, text))));
   }
 
   function drawPanel() {
@@ -881,10 +982,8 @@ export function imageEditView(onToEdit: (g: Generation) => void): ImageEdit {
       ...brushBox,
       h('p', { class: 'cut-hint' }, t(HINT_KEY[tool])),
       h('div', { class: 'field' }, h('span', { class: 'lbl' }, t('ie.layers')), layerRows()),
-      h('div', { class: 'pg-actions' },
-        h('button', { type: 'button', class: 'button ghost', onclick: addPaint }, t('ie.addPaint')),
-        h('button', { type: 'button', class: 'button ghost', onclick: addFill }, t('ie.addFill')),
-        h('button', { type: 'button', class: 'button ghost', onclick: () => fileInput.click() }, t('ie.addFile'))),
+      addRow(t('ie.addLayer'), [[t('ie.addPaint'), addPaint], [t('ie.addFill'), addFill], [t('ie.addFile'), () => fileInput.click()]]),
+      addRow(t('ie.addAdjust'), [[t('ie.addHsl'), () => addAdjust('hsl')], [t('ie.addLevels'), () => addAdjust('levels')]]),
       fileInput,
       ...(active ? layerProps(active) : []),
     );

@@ -1,6 +1,6 @@
 import type { DurationStats, FieldSpec, Figure, Text, GenerateRequest, Generation, ImageSource, Mode, ModelInfo, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { api, GEN_DRAG, imageUrl, refUrl, videoUrl } from '../api.ts';
-import { copyText, h } from '../dom.ts';
+import { fillRange, copyText, h } from '../dom.ts';
 import { lang, t, tx } from '../i18n.ts';
 import { commercialLabel, ensureLicense } from './license.ts';
 import { BENCH_UNIT_MS, MIN_RUNS, benchTimes, refFactor, shortDuration } from '../bench.ts';
@@ -160,7 +160,7 @@ function sliderField(key: string, spec: FieldSpec): Field {
   return {
     el: h('label', {}, lbl(spec, key), h('div', { class: 'row' }, input, out), spec.hint ? h('small', { class: 'opt-hint' }, tx(spec.hint) ?? '') : null),
     get: () => Number(input.value),
-    set: (v) => { if (typeof v === 'number') { input.value = String(v); show(); } },
+    set: (v) => { if (typeof v === 'number') { input.value = String(v); fillRange(input); show(); } },
   };
 }
 
