@@ -87,7 +87,7 @@ export function figures(
   function onEvent(ev: SseEvent) {
     listener?.(ev);
     // Nur Endzustände; done auch für unbekannte Blätter, sonst fehlen per MCP angelegte Figuren
-    if (ev.type === 'done') void load();
+    if (ev.type === 'done' || ev.type === 'figures') void load();
     else if ((ev.type === 'error' || ev.type === 'status') && all.some((f) => f.sheetId === ev.id)) void load();
   }
 

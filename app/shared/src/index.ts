@@ -319,7 +319,9 @@ export type SseEvent =
   | { type: 'comfy'; connected: boolean }
   | { type: 'queue'; remaining: number }
   | { type: 'favorite'; id: string; favorite: boolean }
-  | { type: 'deleted'; id: string };
+  | { type: 'deleted'; id: string }
+  /** Eine Figur wurde angelegt, geändert oder gelöscht (auch per MCP). */
+  | { type: 'figures' };
 
 /** Bildbearbeitung → plan_bildbearbeitung: Projekt = Ebenen mit Quellen, gespeichert in den params des Ergebnisses. */
 export const BLEND_MODES = ['normal', 'multiply', 'screen', 'overlay', 'soft-light', 'color-dodge'] as const;

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, isAbsolute, join } from 'node:path';
-import type { FieldSpec, Figure, FigureRequest, GenerateRequest, Generation, ImageSource, ModelInfo, Page, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
+import type { FieldSpec, Figure, FigureKind, FigureRequest, FigureSheetRequest, GenerateRequest, Generation, ImageSource, ModelInfo, Page, Text, UploadResult, WorkflowInfo } from '@brennglas/shared';
 
 /** Spricht nur mit dem eigenen Backend, nie direkt mit ComfyUI. */
 export const BASE = (process.env.BRENNGLAS_URL ?? 'http://127.0.0.1:3000').replace(/\/$/, '');
@@ -34,10 +34,14 @@ export const backend = {
   figures: () => call<Figure[]>('/api/figures'),
   createFigure: (req: FigureRequest) => call<Figure>('/api/figures', json(req)),
   deleteFigure: (id: string) => call<{ ok: true }>(`/api/figures/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  updateFigure: (id: string, p: { name?: string; kind?: FigureKind; sheetId?: string }) =>
+    call<Figure>(`/api/figures/${encodeURIComponent(id)}`, { ...json(p), method: 'PATCH' }),
+  renderSheet: (req: FigureSheetRequest) => call<{ sheetId: string }>('/api/figures/sheet', json(req)),
   generation: (id: string) => call<Generation>(`/api/generations/${encodeURIComponent(id)}`),
   cancel: (id: string) => call<{ ok: true }>(`/api/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' }),
   remove: (id: string) => call<{ ok: true }>(`/api/generations/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-  gallery: (limit: number, q?: string) => call<Page<Generation>>(`/api/generations?${new URLSearchParams({ limit: String(limit), ...(q ? { q } : {}) })}`),
+  gallery: (limit: number, q?: string, cursor?: number) =>
+    call<Page<Generation>>(`/api/generations?${new URLSearchParams({ limit: String(limit), ...(q ? { q } : {}), ...(cursor ? { cursor: String(cursor) } : {}) })}`),
   async crop(id: string, r: { x: number; y: number; w: number; h: number }): Promise<string> {
     const q = new URLSearchParams({ x: String(r.x), y: String(r.y), w: String(r.w), h: String(r.h) });
     const res = await fetch(`${BASE}/api/images/${encodeURIComponent(id)}/crop?${q}`).catch(() => null);

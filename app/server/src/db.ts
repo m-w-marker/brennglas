@@ -342,6 +342,14 @@ export function getFigure(db: DB, id: string): { name: string; kind: FigureKind;
   return r ? { name: r.name, kind: r.kind, sheetId: r.sheet_id } : undefined;
 }
 
+/** Nur die genannten Felder ändern, die übrigen bleiben. */
+export function updateFigure(db: DB, id: string, p: { name?: string; kind?: FigureKind; sheetId?: string }): boolean {
+  const old = getFigure(db, id);
+  if (!old) return false;
+  db.prepare('UPDATE figures SET name = ?, kind = ?, sheet_id = ? WHERE id = ?').run(p.name ?? old.name, p.kind ?? old.kind, p.sheetId ?? old.sheetId, id);
+  return true;
+}
+
 export function deleteFigure(db: DB, id: string): boolean {
   return db.prepare('DELETE FROM figures WHERE id = ?').run(id).changes > 0;
 }

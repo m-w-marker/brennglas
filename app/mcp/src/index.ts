@@ -2,7 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { MAX_EXTRA_VIEWS } from '@brennglas/shared';
-import type { FieldSpec, Figure, Generation, ParamValue, WorkflowInfo } from '@brennglas/shared';
+import type { FieldSpec, Figure, FigureKind, FigureSheetRequest, Generation, ImageSource, ParamValue, WorkflowInfo } from '@brennglas/shared';
 import { z } from 'zod';
 import { BASE, backend, en, galleryVideoFile, resolveEnum, toSource, toVideo, upscaleKind } from './backend.ts';
 
@@ -12,16 +12,16 @@ Work like a director when asked for a film, spot or sequence:
 1. Plan a shot list first: per shot the subject, action, camera move, shot size and look. Keep characters, products and
    the setting consistent across shots by repeating the same concrete descriptions.
 2. Create a strong start image per shot (text to image), check the preview, regenerate if it is off. For continuity,
-   edit the previous image instead (edit mode with the earlier result as main image) or use last_frame of the previous shot.
+   edit the previous image instead (edit mode with the earlier result as main image) or use extract_last_frame of the previous shot.
    Before animating, check hands, faces, products and lettering with inspect_image: the video model carries every flaw of the
    start image through the whole shot. FLUX 3 Klein is weak at gripping hands; prefer relaxed poses (bag on the forearm,
    hand loosely at the handle) or try several seeds.
 3. Animate each shot with image to video. LTX-2.5 (ltx25-i2v) has camera presets, look and sound; Wan Fun Camera
    (wan22cam-i2v) gives precise pan/zoom/roll paths but no sound. Large LTX moves need >= 5 s and pe=true or a detailed prompt.
    First + last frame (ltx25-flf2v) makes controlled transitions between two images.
-4. Look at each result preview; redo a shot rather than keep a weak one. Then join the shots with concat (fade 0 for cuts,
+4. Look at each result preview; redo a shot rather than keep a weak one. Then join the shots with concat_videos (fade 0 for cuts,
    0.3 to 0.8 for soft transitions).
-5. Finish in concat, not in the model: one continuous music track (music, the shots' own sounds are ducked under it), the logo
+5. Finish in concat_videos, not in the model: one continuous music track (music, the shots' own sounds are ducked under it), the logo
    as a sharp overlay (logo) and an end card image (endcard). Never let the video model render logos or lettering; it smears.
    A dip to black (transition fadeblack) separates scenes, fade_in/fade_out open from and end on black. The user can open the
    result in Brennglas' editor (tab "Video editor" / "Schnitt" in the top bar) to trim shots, change single transitions and render again.
@@ -34,7 +34,7 @@ Known LTX limits and what helps:
 - Faces in wide shots have few pixels and lose likeness: prefer medium/close shots, or 1080p for wide shots.
 - For an exact camera path use Wan Fun Camera (no sound, max 720p) and add sound via the music track.
 Recurring characters and products (same person or product in several shots):
-1. Use an existing one from figures, or create_figure (person, creature or product) from a photo with the face clearly visible, or a packshot (any gallery id
+1. Use an existing one from list_figures, or create_figure (person, creature or product) from a photo with the face clearly visible, or a packshot (any gallery id
    or file; make one with text to image first if needed). Name the clothing in outfit; check the
    returned sheet against the portrait: face shape and build must match.
 2. Per shot generate the start image with figures=[name] and an edit workflow. For people prefer qwen21-edit: it keeps face shape
@@ -62,7 +62,7 @@ Edit strength (denoise, 0.8 to 1): 1 is the free edit, below that the edit start
 perspective. Around 0.9 turns a 3D render into a photo without rebuilding it; below 0.85 hardly anything changes.
 Call list_models first to see models, fields and option names. Prefer English prompts. Tell the user the gallery ids and links.`;
 
-const server = new McpServer({ name: 'brennglas', version: '0.10.0' }, { instructions: INSTRUCTIONS });
+const server = new McpServer({ name: 'brennglas', version: '0.11.0' }, { instructions: INSTRUCTIONS });
 
 const text = (t: string): CallToolResult => ({ content: [{ type: 'text', text: t }] });
 const fail = (e: unknown): CallToolResult => ({ content: [{ type: 'text', text: (e as Error).message }], isError: true });
@@ -99,7 +99,7 @@ async function report(g: Generation): Promise<CallToolResult> {
     ...(g.status === 'done' ? { size: `${g.width}x${g.height}`, seconds: g.durationMs ? Math.round(g.durationMs / 1000) : null } : {}),
     ...(g.status === 'done' ? { image: `${BASE}/api/images/${g.id}/full`, ...(g.video ? { video: `${BASE}/api/images/${g.id}/video` } : {}) } : {}),
     ...(g.error ? { error: g.error } : {}),
-    ...(g.status === 'queued' || g.status === 'running' ? { hint: 'Still rendering; call wait with this id.' } : {}),
+    ...(g.status === 'queued' || g.status === 'running' ? { hint: 'Still rendering; call wait_for_job with this id.' } : {}),
   };
   const content: CallToolResult['content'] = [{ type: 'text', text: JSON.stringify(info, null, 1) }];
   if (g.status === 'done') {
@@ -165,25 +165,25 @@ server.registerTool('list_models', {
   }
 });
 
-server.registerTool('generate', {
+server.registerTool('generate_media', {
   title: 'Generate image or video',
   description: 'Starts a job in Brennglas (it appears live in the user\'s gallery). Pick the workflow from list_models. '
     + 'images: gallery ids or absolute file paths; the first is the main/start image, further ones are references (for first+last frame video, the second is the last frame). '
-    + 'Waits up to wait_seconds, then returns the result with a preview image, or the id to pass to wait. Videos take 30 s to several minutes. '
+    + 'Waits up to wait_seconds, then returns the result with a preview image, or the id to pass to wait_for_job. Videos take 30 s to several minutes. '
     + 'Camera moves in image to video (LTX): large moves (arc, orbit, crane, drone, bullet time) only show from about 5 s; with 3 s the model '
     + 'falls back to a gentle push-in. For those use duration >= 5 and either pe=true or a detailed prompt that also describes the camera path. '
     + 'Runs locally on the user\'s GPU (no credits); jobs queue and render one after another, a running one can be stopped with cancel_job. '
-    + 'With figures, aspect sets the scene format and the figures\' sheets are added as references. For upscaling use upscale. '
+    + 'With figures, aspect sets the scene format and the figures\' sheets are added as references. For upscaling use upscale_media. '
     + 'Fails right away on an unknown workflow, field option or image; a failed render returns status "error" with the reason.',
   inputSchema: {
     workflow: z.string().describe('Workflow name, e.g. "zimage-t2i", "ltx25-i2v", "wan22cam-i2v"'),
     prompt: z.string().optional().describe('Prompt text; English works best'),
     params: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional().describe('Field values by key, see list_models'),
-    images: z.array(z.string()).optional().describe('Gallery ids, "upload:…" refs from last_frame, or absolute paths of local image files'),
-    figures: z.array(z.string()).max(3).optional().describe('Figure names or ids (see figures): new scene with these characters/products '
+    images: z.array(z.string()).optional().describe('Gallery ids, "upload:…" refs from extract_last_frame, or absolute paths of local image files'),
+    figures: z.array(z.string()).max(3).optional().describe('Figure names or ids (see list_figures): new scene with these characters/products '
       + 'on an empty canvas; needs an edit workflow, prompt = the scene only, images become further references'),
     aspect: z.union([z.string(), z.number()]).optional().describe('Scene format with figures, e.g. "16:9" (default), "9:16", "4:5"'),
-    wait_seconds: z.number().min(0).max(600).default(90).describe('Seconds to wait for the result before returning the id; 0 = start only, then use wait'),
+    wait_seconds: z.number().min(0).max(600).default(90).describe('Seconds to wait for the result before returning the id; 0 = start only, then use wait_for_job'),
   },
 }, async ({ workflow, prompt, params, images, figures, aspect, wait_seconds }) => {
   try {
@@ -210,7 +210,7 @@ server.registerTool('generate', {
   }
 });
 
-server.registerTool('upscale', {
+server.registerTool('upscale_media', {
   title: 'Upscale an image or video',
   description: 'Upscales with SeedVR2. An image (gallery id, "upload:…" ref or image file) becomes a new gallery item up to 8192 px on the '
     + 'long edge, in one to a few minutes. A video (gallery id of a video, a video file or a folder of frames) is upscaled frame by '
@@ -224,7 +224,7 @@ server.registerTool('upscale', {
     dst: z.string().optional().describe('Video only, required there: absolute path of the target folder, created if missing'),
     video: z.enum(['mp4', 'prores', 'none']).default('mp4').describe('Video only: file written next to the frames; none = frames only'),
     frames: z.enum(['jpg', 'png16', 'png8']).default('jpg').describe('Video only: format of the single frames; png16 for grading, about 4x larger'),
-    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the result; 0 = start only, then use wait or get_item'),
+    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the result; 0 = start only, then use wait_for_job or get_item'),
   },
 }, async ({ source, long_edge, strength, dst, video, frames, wait_seconds }) => {
   try {
@@ -254,10 +254,10 @@ server.registerTool('upscale', {
 
 const figureLine = (f: Figure) => JSON.stringify({ id: f.id, name: f.name, kind: f.kind, sheet: f.sheetId, sheetStatus: f.sheet?.status ?? 'missing' });
 
-server.registerTool('figures', {
+server.registerTool('list_figures', {
   title: 'List characters and products',
   description: 'Lists the saved figures (recurring people and products) with name, kind and the gallery id of their reference sheet. '
-    + 'Pass a name in generate.figures to put the figure into a new scene. Returns one JSON line per figure, newest first, or a hint '
+    + 'Pass a name in generate_media.figures to put the figure into a new scene. Returns one JSON line per figure, newest first, or a hint '
     + 'when there are none; to add one use create_figure, to remove one delete_figure.',
   annotations: { readOnlyHint: true },
 }, async () => {
@@ -269,41 +269,56 @@ server.registerTool('figures', {
   }
 });
 
+const kindField = z.enum(['person', 'creature', 'product'])
+  .describe('person = human-like character (also cartoon or humanoid monster), creature = animal or being without human shape, product = object or packshot');
+const nameField = z.string().min(1).max(60).describe('Short name used in prompts, e.g. "Mara"');
+
+// Gemeinsam für create_figure und update_figure: alles, was das Blatt bestimmt
+const sheetFields = {
+  outfit: z.string().max(200).optional().describe('Person: clothing in every view · creature and product: details the photo does not show. Fill it whenever the portrait misses parts (legs, shoes, the back), otherwise the model invents them'),
+  extra_views: z.array(z.string()).max(MAX_EXTRA_VIEWS).optional()
+    .describe(`Up to ${MAX_EXTRA_VIEWS} more photos of the same figure in the same outfit (side view, close-up), used as references while rendering`),
+  views: z.array(z.string()).length(4).optional()
+    .describe('One photo per panel instead of rendering, placed unchanged. person: full body front, full body back, medium shot 45°, head close-up · '
+      + 'creature: front, side, back, head close-up · product: front, 45°, back, detail'),
+  sheet: z.string().optional().describe('A finished sheet (own collage) taken as it is instead of rendering'),
+  workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people and creatures (non-commercial), flux3-edit for products, the other one if that is not installed'),
+  template: z.boolean().optional().describe('Render on the grey mannequin template (fixed grid) or freely on white. Default: with template for qwen21-edit, without for flux3-edit (FLUX copies the template shapes)'),
+};
+type SheetArgs = { outfit?: string; extra_views?: string[]; views?: string[]; sheet?: string; workflow?: string; template?: boolean };
+
+/** Blatt-Auftrag; extra = Referenzen, wenn extra_views fehlt (update_figure behält die alten). */
+async function sheetRequest(kind: FigureKind, portrait: ImageSource, a: SheetArgs, extra?: ImageSource[]): Promise<FigureSheetRequest> {
+  // Vorgabe wie im Web-Dialog: das bevorzugte Modell nur, wenn es installiert ist, sonst das andere
+  const prefer = kind === 'product' ? ['flux3-edit', 'qwen21-edit'] : ['qwen21-edit', 'flux3-edit'];
+  const installed = new Set((await backend.models()).filter((m) => m.missing?.length === 0).map((m) => m.modes.edit));
+  const refs = a.extra_views ? await Promise.all(a.extra_views.map(toSource)) : extra;
+  return {
+    kind, portrait, workflow: a.workflow ?? prefer.find((w) => installed.has(w)) ?? prefer[0] as string,
+    ...(a.outfit ? { outfit: a.outfit } : {}), ...(a.template === undefined ? {} : { template: a.template }),
+    ...(refs?.length ? { extra: refs } : {}),
+    ...(a.views ? { views: await Promise.all(a.views.map(toSource)) } : {}),
+    ...(a.sheet ? { sheet: await toSource(a.sheet) } : {}),
+  };
+}
+
 server.registerTool('create_figure', {
   title: 'Create a character or product',
   description: 'Saves a recurring character, creature or product for consistent shots: renders a reference sheet (four views in a fixed '
     + 'grid, in the style of the portrait) and returns its preview. The face should be clearly visible; with flux3-edit a close-up works '
     + 'best. Takes about 30 to 90 s. To use real photos instead of rendering, pass views (one photo per panel) or sheet (a finished '
-    + 'sheet); they are placed unchanged. Afterwards refer to the figure by its name in generate.figures. To change a figure, delete it '
-    + 'with delete_figure and create it again. Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
+    + 'sheet); they are placed unchanged. Afterwards refer to the figure by its name in generate_media.figures. To change it later use '
+    + 'update_figure. Fails if the name is taken; if the sheet fails, the figure is removed again so the name stays free.',
   inputSchema: {
-    name: z.string().min(1).max(60).describe('Short name used in prompts, e.g. "Mara"'),
-    kind: z.enum(['person', 'creature', 'product']).default('person')
-      .describe('person = human-like character (also cartoon or humanoid monster), creature = animal or being without human shape, product = object or packshot'),
+    name: nameField,
+    kind: kindField.default('person'),
     portrait: z.string().describe('Gallery id, "upload:…" ref or absolute path of the portrait or packshot; scenes use it next to the sheet'),
-    outfit: z.string().max(200).optional().describe('Person: clothing in every view · creature and product: details the photo does not show. Fill it whenever the portrait misses parts (legs, shoes, the back), otherwise the model invents them'),
-    extra_views: z.array(z.string()).max(MAX_EXTRA_VIEWS).optional()
-      .describe(`Up to ${MAX_EXTRA_VIEWS} more photos of the same figure in the same outfit (side view, close-up), used as references while rendering`),
-    views: z.array(z.string()).length(4).optional()
-      .describe('One photo per panel instead of rendering, placed unchanged. person: full body front, full body back, medium shot 45°, head close-up · '
-        + 'creature: front, side, back, head close-up · product: front, 45°, back, detail'),
-    sheet: z.string().optional().describe('A finished sheet (own collage) taken as it is instead of rendering'),
-    workflow: z.string().optional().describe('Edit workflow that renders the sheet; default qwen21-edit for people and creatures (non-commercial), flux3-edit for products, the other one if that is not installed'),
-    template: z.boolean().optional().describe('Render on the grey mannequin template (fixed grid) or freely on white. Default: with template for qwen21-edit, without for flux3-edit (FLUX copies the template shapes)'),
-    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the sheet; if it is not done yet, call wait with the returned id'),
+    ...sheetFields,
+    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for the sheet; if it is not done yet, call wait_for_job with the returned id'),
   },
-}, async ({ name, kind, portrait, outfit, extra_views, views, sheet, workflow, template, wait_seconds }) => {
+}, async ({ name, kind, portrait, wait_seconds, ...a }) => {
   try {
-    // Vorgabe wie im Web-Dialog: das bevorzugte Modell nur, wenn es installiert ist, sonst das andere
-    const prefer = kind === 'product' ? ['flux3-edit', 'qwen21-edit'] : ['qwen21-edit', 'flux3-edit'];
-    const installed = new Set((await backend.models()).filter((m) => m.missing?.length === 0).map((m) => m.modes.edit));
-    const wf = workflow ?? prefer.find((w) => installed.has(w)) ?? prefer[0] as string;
-    const f = await backend.createFigure({
-      name, kind, portrait: await toSource(portrait), workflow: wf, ...(outfit ? { outfit } : {}), ...(template === undefined ? {} : { template }),
-      ...(extra_views?.length ? { extra: await Promise.all(extra_views.map(toSource)) } : {}),
-      ...(views ? { views: await Promise.all(views.map(toSource)) } : {}),
-      ...(sheet ? { sheet: await toSource(sheet) } : {}),
-    });
+    const f = await backend.createFigure({ name, ...await sheetRequest(kind, await toSource(portrait), a) });
     const g = await waitFor(f.sheetId, wait_seconds);
     const failed = g.status === 'error' || g.status === 'cancelled';
     // Gescheitertes Blatt: Figur wieder weg, sonst blockiert sie den Namen
@@ -321,7 +336,7 @@ server.registerTool('delete_figure', {
   description: 'Removes a saved figure by name or id, e.g. a failed one or one to create again with other settings. Only call it when the '
     + 'user asks. Its reference sheet stays in the gallery (delete it afterwards with delete_item if wanted); scenes already rendered '
     + 'with the figure are not touched. Returns a confirmation; fails on an unknown name with the list of known figures.',
-  inputSchema: { figure: z.string().describe('Name or id of the figure, see figures') },
+  inputSchema: { figure: z.string().describe('Name or id of the figure, see list_figures') },
   annotations: { destructiveHint: true, idempotentHint: true },
 }, async ({ figure }) => {
   try {
@@ -334,14 +349,67 @@ server.registerTool('delete_figure', {
   }
 });
 
-server.registerTool('wait', {
+server.registerTool('update_figure', {
+  title: 'Change a character or product',
+  description: 'Changes a saved figure: rename it, change its kind or give it a new reference sheet. Any sheet field (portrait, outfit, '
+    + 'extra_views, views, sheet, workflow, template) renders a new sheet; the portrait and extra views left out are taken from the old '
+    + 'sheet; kind alone keeps the old sheet, add a sheet field to render one for the new kind. The figure switches to the new sheet only once it is done, the old sheet stays in the gallery and scenes already rendered '
+    + 'are not touched. If the sheet is still rendering after wait_seconds, call wait_for_job with the returned id and then update_figure '
+    + 'with sheet_id. Returns the figure (with the new sheet\'s preview); fails on an unknown figure or a taken name, and a failed '
+    + 'sheet leaves the figure as it was.',
+  inputSchema: {
+    figure: z.string().describe('Name or id of the figure, see list_figures'),
+    name: nameField.optional().describe('New name'),
+    kind: kindField.optional(),
+    portrait: z.string().optional().describe('New portrait or packshot (gallery id, "upload:…" ref or absolute path); default: the old one'),
+    ...sheetFields,
+    sheet_id: z.string().optional().describe('Gallery id of a finished sheet to switch to, e.g. one that was still rendering in an earlier call'),
+    wait_seconds: z.number().min(0).max(600).default(180).describe('Seconds to wait for a new sheet'),
+  },
+  annotations: { destructiveHint: false },
+}, async ({ figure, name, kind, portrait, sheet_id, wait_seconds, ...a }) => {
+  try {
+    const [f] = await resolveFigures([figure]);
+    if (!f) throw new Error(`Unknown figure "${figure}"`);
+    const render = portrait !== undefined || Object.values(a).some((v) => v !== undefined);
+    if (render && sheet_id) throw new Error('Pass either sheet_id or the fields of a new sheet, not both');
+    if (!render && !sheet_id && name === undefined && kind === undefined) throw new Error('Nothing to change: pass name, kind, sheet fields or sheet_id');
+    let sheet: Generation | undefined;
+    if (render) {
+      // Szenen holen das Porträt als Referenz 1 des Blatts, weitere Ansichten folgen dahinter
+      const old = (index: number): ImageSource => ({ kind: 'input', id: f.sheetId, index });
+      const extra = portrait === undefined ? Array.from({ length: Math.max(0, (f.sheet?.refCount ?? 1) - 1) }, (_, i) => old(i + 2)) : undefined;
+      const { sheetId } = await backend.renderSheet(await sheetRequest(kind ?? f.kind, portrait === undefined ? old(1) : await toSource(portrait), a, extra));
+      sheet = await waitFor(sheetId, wait_seconds);
+      if (sheet.status !== 'done') {
+        const r = await report(sheet);
+        const busy = sheet.status === 'queued' || sheet.status === 'running';
+        r.content.unshift({ type: 'text', text: busy ? `Sheet still rendering; once wait_for_job reports it done, call update_figure with figure "${f.name}" and sheet_id ${sheetId}.`
+          : `Sheet failed, figure "${f.name}" is unchanged.` });
+        return r;
+      }
+    }
+    const nf = await backend.updateFigure(f.id, {
+      ...(name === undefined ? {} : { name }), ...(kind === undefined ? {} : { kind }),
+      ...(sheet ? { sheetId: sheet.id } : sheet_id ? { sheetId: sheet_id } : {}),
+    });
+    if (!sheet) return text(`Figure updated: ${figureLine(nf)}`);
+    const r = await report(sheet);
+    r.content.unshift({ type: 'text', text: `Figure updated: ${figureLine(nf)}; the old sheet ${f.sheetId} is still in the gallery. New sheet:` });
+    return r;
+  } catch (e) {
+    return fail(e);
+  }
+});
+
+server.registerTool('wait_for_job', {
   title: 'Wait for a job',
   description: 'Blocks until a queued or running job finishes, then returns its result: status, size, image/video links and a 512 px preview. '
-    + 'Use it when generate or create_figure came back with "Still rendering". If the timeout passes first, the status is still '
-    + 'queued or running; call wait again with the same id. A job cancelled meanwhile returns at once with status "cancelled", '
+    + 'Use it when generate_media, upscale_media, create_figure or update_figure came back with "Still rendering". If the timeout passes first, the status is still '
+    + 'queued or running; call wait_for_job again with the same id. A job cancelled meanwhile returns at once with status "cancelled", '
     + 'a failed one with status "error" and the reason; an unknown id fails. To look at a job without waiting, use get_item.',
   inputSchema: {
-    id: z.string().describe('Gallery id returned by generate, create_figure or gallery'),
+    id: z.string().describe('Gallery id returned by generate_media, upscale_media, create_figure or list_gallery'),
     timeout_seconds: z.number().min(1).max(600).default(180).describe('Longest wait; videos often need 60 to 300 s'),
   },
   annotations: { readOnlyHint: true },
@@ -356,8 +424,8 @@ server.registerTool('wait', {
 server.registerTool('get_item', {
   title: 'Get one gallery item',
   description: 'Returns one gallery item right away, without waiting: status, workflow, prompt, size, image/video links and, when done, '
-    + 'a 512 px preview (queued or running jobs have none yet). Use it to look up an id from gallery or to check a job\'s progress; '
-    + 'to wait for the end use wait. Fails on an unknown id.',
+    + 'a 512 px preview (queued or running jobs have none yet). Use it to look up an id from list_gallery or to check a job\'s progress; '
+    + 'to wait for the end use wait_for_job. Fails on an unknown id.',
   inputSchema: { id: z.string().describe('Gallery id') },
   annotations: { readOnlyHint: true },
 }, async ({ id }) => {
@@ -405,7 +473,7 @@ server.registerTool('enhance_prompt', {
   description: 'Turns a short idea (any language) into a detailed English prompt for a target: "Generate image", "Edit image", '
     + '"Text to video (LTX)", "Image to video (LTX)" or "Wan camera move". Optional image (gallery id or path) for image-based targets. '
     + 'large=true uses Qwen 3.5 9B instead of Gemma 4 E2B. Takes 1 to 4 seconds, each call words it differently. '
-    + 'Skip it when you already wrote a detailed prompt yourself and pass that straight to generate. Returns the prompt as plain text, '
+    + 'Skip it when you already wrote a detailed prompt yourself and pass that straight to generate_media. Returns the prompt as plain text, '
     + 'nothing is added to the gallery; fails on an unknown target or when the language model is not installed.',
   inputSchema: {
     idea: z.string().describe('Short idea or rough prompt, any language'),
@@ -433,10 +501,10 @@ server.registerTool('enhance_prompt', {
 server.registerTool('inspect_image', {
   title: 'Inspect part of an image at full resolution',
   description: 'Returns a region of a gallery image (or a video\'s preview frame) at full resolution, up to 1024 px. '
-    + 'The previews from generate are only 512 px; use this to check hands, faces, products and lettering before animating. '
+    + 'The previews from generate_media are only 512 px; use this to check hands, faces, products and lettering before animating. '
     + 'Region as fractions of the image: x, y = top-left corner, w, h = size (0 to 1). Default: the whole image. '
     + 'Returns the crop as an inline WebP image; read-only, fails on an unknown id. For a first look at the whole result the preview '
-    + 'from generate, wait or get_item is enough; use this for the details.',
+    + 'from generate_media, wait_for_job or get_item is enough; use this for the details.',
   inputSchema: {
     id: z.string().describe('Gallery id of an image or video'),
     x: z.number().min(0).max(1).default(0).describe('Left edge as a fraction of the width'),
@@ -453,11 +521,11 @@ server.registerTool('inspect_image', {
   }
 });
 
-server.registerTool('last_frame', {
+server.registerTool('extract_last_frame', {
   title: 'Last frame of a video',
   description: 'Extracts the last frame of a finished video as a new start image, for a follow-up shot that continues seamlessly. '
-    + 'Returns an image reference ("upload:…") and its size, to pass in generate.images; it is not added to the gallery. '
-    + 'Use the id of a finished shot from generate, wait or gallery. Fails if the id is not a finished video. '
+    + 'Returns an image reference ("upload:…") and its size, to pass in generate_media.images; it is not added to the gallery. '
+    + 'Use the id of a finished shot from generate_media, wait_for_job or list_gallery. Fails if the id is not a finished video. '
     + 'For a cut to a separate scene start from a new image instead.',
   inputSchema: { id: z.string().describe('Gallery id of a finished video') },
 }, async ({ id }) => {
@@ -469,11 +537,11 @@ server.registerTool('last_frame', {
   }
 });
 
-server.registerTool('concat', {
+server.registerTool('concat_videos', {
   title: 'Join shots into one clip',
   description: 'Joins finished videos (gallery ids, in order) into one MP4 or WebM that appears in the gallery. Shots are matched to the first '
     + 'shot\x27s size and frame rate; shots without sound get silence. '
-    + 'Use it as the last step of a film, after every shot was checked; it does not change the shots, redo a weak one with generate first. '
+    + 'Use it as the last step of a film, after every shot was checked; it does not change the shots, redo a weak one with generate_media first. '
     + 'Renders right away (seconds to a few minutes) and returns '
     + 'the new gallery id with a preview; fails if an id is unknown or not a finished video, or a music/logo file cannot be read.',
   inputSchema: {
@@ -507,21 +575,24 @@ server.registerTool('concat', {
   }
 });
 
-server.registerTool('gallery', {
-  title: 'Recent gallery items',
-  description: 'Lists recent results (newest first) with id, workflow, status and prompt, optionally filtered by a search text. '
-    + 'Use the ids as images in generate, e.g. to animate an image or edit it further. Returns one line per item (at most 50, no paging); '
-    + 'search matches any part of the prompt, ignoring case. For the details and preview of one item use get_item, '
-    + 'for characters and products figures.',
+server.registerTool('list_gallery', {
+  title: 'List gallery items',
+  description: 'Lists results (newest first) with id, workflow, status and prompt, optionally filtered by a search text. '
+    + 'Use the ids as images in generate_media, e.g. to animate an image or edit it further. Returns one line per item, at most 50 per page; '
+    + 'when there are more, the last line names the cursor for the next page. search matches any part of the prompt, ignoring case. '
+    + 'For the details and preview of one item use get_item, for characters and products list_figures.',
   inputSchema: {
-    limit: z.number().min(1).max(50).default(10).describe('How many items, newest first'),
+    limit: z.number().min(1).max(50).default(10).describe('How many items per page, newest first'),
     search: z.string().optional().describe('Only items whose prompt or expanded prompt contains this text'),
+    cursor: z.number().int().optional().describe('Cursor from the last line of the previous page, for the next older items'),
   },
   annotations: { readOnlyHint: true },
-}, async ({ limit, search }) => {
+}, async ({ limit, search, cursor }) => {
   try {
-    const page = await backend.gallery(limit, search);
-    return text(page.items.map((g) => `${g.id}  ${g.workflow}  ${g.status}${g.video ? '  video' : ''}  ${g.prompt.slice(0, 100)}`).join('\n') || 'Gallery is empty.');
+    const page = await backend.gallery(limit, search, cursor);
+    const lines = page.items.map((g) => `${g.id}  ${g.workflow}  ${g.status}${g.video ? '  video' : ''}  ${g.prompt.slice(0, 100)}`);
+    if (page.nextCursor !== null) lines.push(`More items: call list_gallery with cursor ${page.nextCursor}`);
+    return text(lines.join('\n') || (cursor ? 'No more items.' : 'Gallery is empty.'));
   } catch (e) {
     return fail(e);
   }

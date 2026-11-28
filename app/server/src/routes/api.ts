@@ -11,8 +11,8 @@ import { concatClips, frameAt, probe, type ConcatOptions } from '../clips.ts';
 import { saveVideoInput } from '../video-input.ts';
 import { PlanError, TRANSITIONS, type CutFormat, type Join, type ShotEdit, type Transition } from '../concat-plan.ts';
 import {
-  deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
-  refsOf, setFavorite, toApi, durationStats, usedWorkflows, type DB,
+  deleteFigure, deleteGeneration, figureUsing, finishDone, getChain, getFigure, getRow, insertFigure, insertGeneration, listFigures, listGenerations,
+  refsOf, setFavorite, toApi, durationStats, updateFigure, usedWorkflows, type DB,
 } from '../db.ts';
 import { composeSheet, sheetProblem, sheetPrompt, templateFile } from '../figures.ts';
 import { addClient, broadcast } from '../events.ts';
@@ -237,26 +237,57 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
     }
   });
 
+  /** Claude wählt Figuren per Name, darum eindeutig; selfId = die Figur, die gerade umbenannt wird. */
+  const parseName = (raw: unknown, selfId?: string): string => {
+    const name = typeof raw === 'string' ? raw.trim() : '';
+    if (!name || name.length > 60) throw new BadRequest('Name fehlt oder ist länger als 60 Zeichen');
+    if (listFigures(db).some((f) => f.id !== selfId && f.name.toLowerCase() === name.toLowerCase())) throw new BadRequest(`Eine Figur „${name}“ gibt es schon`);
+    return name;
+  };
+
+  /** Fertiges Blatt aus der Galerie; selfId darf es schon besitzen. */
+  const takeSheet = (sheetId: string, selfId?: string): string => {
+    const row = getRow(db, sheetId);
+    const own = selfId !== undefined && getFigure(db, selfId)?.sheetId === sheetId;
+    const problem = sheetProblem(row?.status, row ? refsOf(row).length : 0, row && !own ? figureUsing(db, row.id) : null);
+    if (problem || !row) throw new BadRequest(problem ?? 'Blatt nicht gefunden');
+    return row.id;
+  };
+
   // Figur speichern: aus einer Vorschau (sheetId) oder in einem Zug (MCP), dann wird das Blatt erst gerechnet
   app.post('/api/figures', async (req, reply) => {
     const body = (req.body ?? {}) as Partial<FigureSheetRequest> & { name?: unknown; sheetId?: unknown };
-    const name = typeof body.name === 'string' ? body.name.trim() : '';
-    if (!name || name.length > 60) return reply.code(400).send({ error: 'Name fehlt oder ist länger als 60 Zeichen' });
-    // Claude wählt Figuren per Name, darum eindeutig
-    if (listFigures(db).some((f) => f.name.toLowerCase() === name.toLowerCase())) return reply.code(400).send({ error: `Eine Figur „${name}“ gibt es schon` });
     try {
+      const name = parseName(body.name);
       const kind = parseKind(body.kind);
       let sheetId: string;
       if (typeof body.sheetId === 'string') {
-        const row = getRow(db, body.sheetId);
-        const problem = sheetProblem(row?.status, row ? refsOf(row).length : 0, row ? figureUsing(db, row.id) : null);
-        if (problem || !row) throw new BadRequest(problem ?? 'Blatt nicht gefunden');
-        sheetId = row.id;
+        sheetId = takeSheet(body.sheetId);
       } else {
         sheetId = await makeSheet(body);
       }
       const id = randomUUID();
       insertFigure(db, { id, name, kind, sheetId });
+      broadcast({ type: 'figures' });
+      return listFigures(db).find((f) => f.id === id);
+    } catch (e) {
+      return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
+    }
+  });
+
+  // Ändern: Name, Art und/oder ein fertiges neues Blatt; das alte Blatt bleibt in der Galerie
+  app.patch('/api/figures/:id', async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    if (!getFigure(db, id)) return reply.code(404).send({ error: 'Nicht gefunden' });
+    const body = (req.body ?? {}) as { name?: unknown; kind?: unknown; sheetId?: unknown };
+    try {
+      if (body.sheetId !== undefined && typeof body.sheetId !== 'string') throw new BadRequest('sheetId muss eine ID sein');
+      updateFigure(db, id, {
+        ...(body.name === undefined ? {} : { name: parseName(body.name, id) }),
+        ...(body.kind === undefined ? {} : { kind: parseKind(body.kind) }),
+        ...(typeof body.sheetId === 'string' ? { sheetId: takeSheet(body.sheetId, id) } : {}),
+      });
+      broadcast({ type: 'figures' });
       return listFigures(db).find((f) => f.id === id);
     } catch (e) {
       return reply.code(e instanceof BadRequest ? 400 : 502).send({ error: (e as Error).message });
@@ -265,6 +296,7 @@ export function registerApi(app: FastifyInstance, { db, jobs, video, workflows, 
 
   app.delete('/api/figures/:id', async (req, reply) => {
     if (!deleteFigure(db, (req.params as { id: string }).id)) return reply.code(404).send({ error: 'Nicht gefunden' });
+    broadcast({ type: 'figures' });
     return { ok: true };
   });
 

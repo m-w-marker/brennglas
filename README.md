@@ -111,7 +111,7 @@ Replace `<brennglas folder>` with your path, every backslash twice. With your ow
 }
 ```
 
-Tools: `generate`, `upscale` (images up to 8k, videos up to UHD), `wait`, `get_item`, `cancel_job`, `inspect_image` (full resolution crops), `figures`, `create_figure` and `delete_figure` (characters), `last_frame`, `concat` (cut, transitions, music, logo, end card), `list_models`, `gallery`, `delete_item`, `enhance_prompt`. The server also gives Claude a short directing guide.
+Tools: `generate_media`, `upscale_media` (images up to 8k, videos up to UHD), `wait_for_job`, `get_item`, `cancel_job`, `inspect_image` (full resolution crops), `list_figures`, `create_figure`, `update_figure` and `delete_figure` (characters), `extract_last_frame`, `concat_videos` (cut, transitions, music, logo, end card), `list_models`, `list_gallery`, `delete_item`, `enhance_prompt`. The server also gives Claude a short directing guide.
 
 If the tools do not show up, Settings → Developer shows the log; usually a path has single backslashes or Brennglas is not running.
 Other local (stdio) MCP clients such as Codex CLI or LM Studio should work but are not tested. Brennglas only listens on your own computer.
